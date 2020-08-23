@@ -1,0 +1,14 @@
+{
+  "imports": {
+    "is-what": "https://deno.land/x/is_what/src/index.ts",
+    "oak": "https://deno.land/x/oak/mod.ts",
+    "mysql": "https://deno.land/x/mysql/mod.ts",
+    "case": "https://deno.land/x/case/mod.ts",
+    "uuid": "https://deno.land/std/uuid/mod.ts",
+    "hash": "https://deno.land/std/hash/mod.ts",
+    "sql-builder": "https://deno.land/x/sql_builder/mod.ts",
+    "async": "https://deno.land/std/async/mod.ts",
+    "log": "https://deno.land/std/log/mod.ts",
+    "plural": "https://deno.land/x/deno_plural/mod.ts"
+  }
+}

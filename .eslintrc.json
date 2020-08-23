@@ -1,0 +1,79 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "tsconfig.json",
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint/eslint-plugin"],
+  "extends": [
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier",
+    "prettier/@typescript-eslint"
+  ],
+  "root": true,
+  "rules": {
+    "no-console": ["error"],
+    "curly": ["error", "multi-line"],
+    "no-trailing-spaces": [
+      "error",
+      {
+        "ignoreComments": true,
+        "skipBlankLines": true
+      }
+    ],
+    "@typescript-eslint/interface-name-prefix": "off",
+    "@typescript-eslint/explicit-function-return-type": [
+      "error",
+      {
+        "allowExpressions": true
+      }
+    ],
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/typedef": [
+      "error",
+      {
+        "arrowParameter": false,
+        "memberVariableDeclaration": false,
+        "parameter": false
+      }
+    ],
+    "@typescript-eslint/member-ordering": [
+      "error",
+      {
+        "default": [
+          "static-field",
+          "static-method",
+          "constructor",
+          "instance-field",
+          "abstract-field",
+          "instance-method",
+          "abstract-method"
+        ]
+      }
+    ],
+    "@typescript-eslint/no-empty-function": ["error", { "allow": ["constructors"] }],
+    "@typescript-eslint/prefer-nullish-coalescing": ["warn"],
+    "@typescript-eslint/prefer-optional-chain": ["warn"],
+    "@typescript-eslint/explicit-module-boundary-types": ["off"],
+    "quotes": ["error", "single", { "allowTemplateLiterals": true, "avoidEscape": true }],
+    "no-shadow": ["error"],
+    "object-shorthand": ["error"],
+    "comma-dangle": [
+      "error",
+      {
+        "arrays": "always-multiline",
+        "objects": "always-multiline",
+        "imports": "always-multiline",
+        "exports": "never",
+        "functions": "never"
+      }
+    ],
+    "object-curly-spacing": ["error", "always"],
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/ban-ts-comment": "off",
+    "prefer-const": ["error", {
+      "destructuring": "all"
+    }]
+  }
+}

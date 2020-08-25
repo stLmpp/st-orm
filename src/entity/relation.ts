@@ -2,7 +2,7 @@ import { Type } from '../shared/type.ts';
 import { JoinColumnOptions } from './join-column.ts';
 import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { entityStore } from '../store/entity-store.ts';
-import { isAnyObject, isString, isFunction } from 'is-what';
+import { isAnyObject, isFunction, isString } from 'is-what';
 import { JoinTableOptions } from './join-table.ts';
 
 export enum RelationDefinition {
@@ -82,4 +82,34 @@ export function createRelationDecorator<T, K extends keyof T>(
     };
     entityStore.upsertRelation(target.constructor, propertyKey.toString(), metadata);
   };
+}
+
+export function resolveRelation(
+  databaseName: string,
+  tableName: string,
+  name: string,
+  referencedTableName: string,
+  relationMetadata: RelationMetadata
+): [string, any[]] {
+  let statement = 'ALTER TABLE ??.?? ADD CONSTRAINT ?? ';
+  const params: any[] = [databaseName, tableName, name];
+  if (relationMetadata.joinColumns?.length) {
+    let foreignKeyStatement = 'FOREIGN KEY(';
+    const fkParams = [];
+    let referencesStatement = 'REFERENCES ??(';
+    const refParams: any[] = [referencedTableName];
+    for (const joinColumn of relationMetadata.joinColumns) {
+      foreignKeyStatement += '??,';
+      fkParams.push(joinColumn.name);
+      referencesStatement += '??,';
+      refParams.push(joinColumn.referencedColumn);
+    }
+    foreignKeyStatement = foreignKeyStatement.slice(0, -1) + ') ';
+    referencesStatement = referencesStatement.slice(0, -1) + ') ';
+    statement += foreignKeyStatement;
+    params.push(...fkParams);
+    statement += referencesStatement;
+    params.push(...refParams);
+  }
+  return [statement, params];
 }

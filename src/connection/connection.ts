@@ -8,7 +8,9 @@ import { EntityMetadata } from '../entity/entity.ts';
 import { informationSchemaNamingStrategy } from '../information-schema/information-schema-naming-strategy.ts';
 
 export interface SyncOptions {
-  deleteTablesWithoutEntityDefinition?: boolean;
+  dropUnknownTables?: boolean;
+  dropUnkownColumns?: boolean;
+  askBeforeSync?: boolean;
 }
 
 export interface ConnectionConfig extends ClientConfig {

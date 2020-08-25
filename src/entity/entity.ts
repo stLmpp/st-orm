@@ -3,6 +3,7 @@ import { entityStore } from '../store/entity-store.ts';
 import { isString, isAnyObject } from 'is-what';
 import { IndexMetadata } from './indexes.ts';
 import { RelationMetadata } from './relation.ts';
+import { StMap } from '../shared/map.ts';
 
 export interface EntityOptions {
   name?: string;
@@ -12,8 +13,8 @@ export interface EntityOptions {
 }
 
 export interface EntityMetadata extends EntityOptions {
-  columnsMetadata: Map<string, ColumnMetadata>;
-  relationsMetadata: Map<string, RelationMetadata>;
+  columnsMetadata: StMap<string, ColumnMetadata>;
+  relationsMetadata: StMap<string, RelationMetadata>;
   relationProperties?: Record<string, string>;
   indexes?: IndexMetadata[];
 }

@@ -8,6 +8,8 @@ export const DB_CONFIG: ConnectionConfig = {
   port: 3306,
   sync: true,
   syncOptions: {
-    deleteTablesWithoutEntityDefinition: true,
+    dropUnknownTables: true,
+    dropUnkownColumns: true,
+    askBeforeSync: true,
   },
 };

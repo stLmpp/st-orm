@@ -1,4 +1,5 @@
 import './src/injector/reflect.ts';
+// TODO check if reflection is working correctly
 // import 'https://cdn.pika.dev/@abraham/reflection@^0.7.0';
 import { Application } from 'oak';
 import { Connection } from './src/connection/connection.ts';

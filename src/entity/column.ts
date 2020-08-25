@@ -1,8 +1,11 @@
 import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { isArray, isDate, isNullOrUndefined, isNumber, isString } from 'is-what';
 import { entityStore } from '../store/entity-store.ts';
-import { applyDecorators } from '../shared/util.ts';
+import { applyDecorators, isArrayEqual } from '../shared/util.ts';
 import { IndexMetadata } from './indexes.ts';
+import { Columns } from '../information-schema/columns.entity.ts';
+import { format } from 'datetime';
+import { StMap } from '../shared/map.ts';
 
 export interface ColumnOptions {
   propertyKey?: string;
@@ -99,78 +102,53 @@ export function PrimaryGeneratedColumn(
 }
 
 export enum ColumnType {
-  int = 'INT',
-  integer = 'INT',
-  tinyint = 'TINYINT',
-  smallint = 'SMALLINT',
-  mediumint = 'MEDIUMINT',
-  bigint = 'BIGINT',
-  float = 'FLOAT',
-  double = 'DOUBLE',
-  decimal = 'DECIMAL',
-  dec = 'DECIMAL',
-  numeric = 'DECIMAL',
-  fixed = 'DECIMAL',
-  doublePrecision = 'DOUBLE',
-  real = 'DOUBLE',
-  bool = 'TINYINT',
-  boolean = 'TINYINT',
-  datetime = 'DATETIME',
-  date = 'DATE',
-  timestamp = 'TIMESTAMP',
-  time = 'TIME',
-  year = 'YEAR',
-  char = 'CHAR',
-  varchar = 'VARCHAR',
-  blob = 'BLOB',
-  tinyblob = 'TINYBLOB',
-  mediumblob = 'MEDIUMBLOB',
-  text = 'TEXT',
-  tinytext = 'TINYTEXT',
-  mediumtext = 'MEDIUMTEXT',
-  longtext = 'LONGTEXT',
-  binary = 'BINARY',
-  varbinary = 'VARBINARY',
-  enum = 'ENUM',
-  bit = 'BIT',
+  int = 'int',
+  integer = 'int',
+  tinyint = 'tinyint',
+  smallint = 'smallint',
+  mediumint = 'mediumint',
+  bigint = 'bigint',
+  float = 'float',
+  double = 'double',
+  decimal = 'decimal',
+  dec = 'decimal',
+  numeric = 'decimal',
+  fixed = 'decimal',
+  doublePrecision = 'double',
+  real = 'double',
+  bool = 'tinyint',
+  boolean = 'tinyint',
+  datetime = 'datetime',
+  date = 'date',
+  timestamp = 'timestamp',
+  time = 'time',
+  year = 'year',
+  char = 'char',
+  varchar = 'varchar',
+  blob = 'blob',
+  tinyblob = 'tinyblob',
+  mediumblob = 'mediumblob',
+  text = 'text',
+  tinytext = 'tinytext',
+  mediumtext = 'mediumtext',
+  longtext = 'longtext',
+  binary = 'binary',
+  varbinary = 'varbinary',
+  enum = 'enum',
+  bit = 'bit',
 }
 
 export type ColumnResolver = (columnMetadata: ColumnMetadata) => [string, any[]];
 
-function defaultColumnResolver({
-  length,
-  type,
-  name,
-  generated,
-  primary,
-  nullable,
-  precision,
-  scale,
-  unsigned,
-  zerofill,
-  defaultRaw,
-  enumValue,
-  collate,
-  comment,
-}: ColumnMetadata): [string, any[]] {
+function defaultColumnResolver(columnMetadata: ColumnMetadata): [string, any[]] {
+  const { name, generated, primary, nullable, unsigned, zerofill, defaultRaw, collate, comment } = columnMetadata;
   const params: any[] = [name];
-  let len =
-    !isNullOrUndefined(length) || !isNullOrUndefined(precision) || !isNullOrUndefined(scale)
-      ? '(' + (length ? length : `${precision ?? 0},${scale ?? 0}`) + ')'
-      : '';
-  if (enumValue) {
-    let enumValues = isArray(enumValue) ? enumValue : Object.values(enumValue);
-    if (enumValues.some(v => isNumber(v))) {
-      enumValues = enumValues.filter(isNumber);
-    }
-    params.push(...enumValues);
-    enumValues = enumValues.map(() => `?`);
-    len = `(${enumValues.join(',')})`;
-  }
+  const [typeStatement, typeParams] = getTypeAndLength(columnMetadata);
+  params.push(...typeParams);
   const isNull = nullable ? ' NULL' : ' NOT NULL';
   const increment = generated && generated === ColumnGenerated.increment ? ' AUTO_INCREMENT' : '';
   const primaryKey = primary ? ' PRIMARY KEY' : '';
-  let column = `?? ${enumValue ? ColumnType.enum : type}${len}${isNull}${increment}${primaryKey}`;
+  let column = `?? ${typeStatement}${isNull}${increment}${primaryKey}`;
   if (defaultRaw) {
     column += ` DEFAULT ${defaultRaw}`;
   }
@@ -188,6 +166,26 @@ function defaultColumnResolver({
     params.push(comment);
   }
   return [column, params];
+}
+
+function getTypeAndLength({ length, precision, scale, enumValue, type }: ColumnMetadata): [string, any[]] {
+  const params = [];
+  const statement = enumValue ? ColumnType.enum : type;
+  let len =
+    !isNullOrUndefined(length) || !isNullOrUndefined(precision) || !isNullOrUndefined(scale)
+      ? '(' + (length ? length : `${precision ?? 0},${scale ?? 0}`) + ')'
+      : '';
+  if (enumValue) {
+    let enumValues = extractEnumValues(enumValue);
+    if (enumValues.some(v => ('' + v).includes(`'`))) {
+      throw new Error(`It is not allowed to use "'" in a enum value`);
+    }
+    params.push(...enumValues);
+    enumValues = enumValues.map(() => `?`);
+    len = `(${enumValues.join(',')})`;
+  }
+
+  return [statement + len, params];
 }
 
 function intResolver(columnMetadata: ColumnMetadata): [string, any[]] {
@@ -213,7 +211,9 @@ function dateResolver(columnMetadata: ColumnMetadata): [string, any[]] {
   if (!columnMetadata.defaultRaw && !isNullOrUndefined(columnMetadata.defaultValue)) {
     query += ' DEFAULT ?';
     params.push(
-      isDate(columnMetadata.defaultValue) ? columnMetadata.defaultValue.toISOString() : columnMetadata.defaultValue
+      isDate(columnMetadata.defaultValue)
+        ? format(columnMetadata.defaultValue, 'yyyy-MM-dd hh:mm:ss')
+        : columnMetadata.defaultValue
     );
   }
   return [query, params];
@@ -271,23 +271,30 @@ export const resolveColumn: Record<ColumnType, ColumnResolver> = {
   [ColumnType.bit]: columnMetadata => defaultColumnResolver({ ...DefaultTypes[ColumnType.bit], ...columnMetadata }),
 };
 
+function applyDefaultValues(columnMetadata: ColumnMetadata): ColumnMetadata {
+  return {
+    ...DefaultTypes[columnMetadata.type!],
+    ...columnMetadata,
+  };
+}
+
 export const DefaultTypes: { [key: string]: any } = {
-  VARCHAR: { length: 255 },
-  CHAR: { length: 1 },
-  BINARY: { length: 1 },
-  VARBINARY: { length: 255 },
-  DECIMAL: { precision: 10, scale: 0 },
-  DEC: { precision: 10, scale: 0 },
-  NUMERIC: { precision: 10, scale: 0 },
-  FIXED: { precision: 10, scale: 0 },
-  FLOAT: { precision: 12 },
-  DOUBLE: { precision: 22 },
-  BIT: { length: 1 },
-  INT: { length: 11 },
-  TINYINT: { length: 4 },
-  SMALLINT: { length: 6 },
-  MEDIUMINT: { length: 9 },
-  BIGINT: { length: 20 },
+  varchar: { length: 255 },
+  char: { length: 1 },
+  binary: { length: 1 },
+  varbinary: { length: 255 },
+  decimal: { precision: 10, scale: 2 },
+  dec: { precision: 10, scale: 2 },
+  numeric: { precision: 10, scale: 2 },
+  fixed: { precision: 10, scale: 2 },
+  float: { precision: 12 },
+  double: { precision: 22 },
+  bit: { length: 1 },
+  int: { length: 11 },
+  tinyint: { length: 4 },
+  smallint: { length: 6 },
+  mediumint: { length: 9 },
+  bigint: { length: 20 },
 };
 
 function resolveMySqlType(type: any): ColumnType | undefined {
@@ -297,8 +304,204 @@ function resolveMySqlType(type: any): ColumnType | undefined {
   return mappedType.get(type);
 }
 
-const mappedType = new Map<any, ColumnType>()
+const mappedType = new StMap<any, ColumnType>()
   .set(Number, ColumnType.int)
   .set(String, ColumnType.varchar)
   .set(Boolean, ColumnType.boolean)
   .set(Date, ColumnType.datetime);
+
+export function extractEnumValues(enumValue: any): string[] {
+  if (!enumValue) {
+    return [];
+  }
+  let enumValues = isArray(enumValue) ? enumValue : Object.values(enumValue);
+  if (enumValues.some(v => isNumber(v))) {
+    enumValues = enumValues.filter(isNumber);
+  }
+  return enumValues;
+}
+
+export function isNumericType(type: ColumnType): boolean {
+  return [
+    ColumnType.int,
+    ColumnType.integer,
+    ColumnType.tinyint,
+    ColumnType.smallint,
+    ColumnType.mediumint,
+    ColumnType.bigint,
+    ColumnType.float,
+    ColumnType.double,
+    ColumnType.decimal,
+    ColumnType.dec,
+    ColumnType.numeric,
+    ColumnType.fixed,
+    ColumnType.doublePrecision,
+    ColumnType.real,
+    ColumnType.bool,
+    ColumnType.boolean,
+    ColumnType.bit,
+  ].includes(type);
+}
+
+export function isStringType(type: ColumnType): boolean {
+  return [
+    ColumnType.char,
+    ColumnType.varchar,
+    ColumnType.blob,
+    ColumnType.tinyblob,
+    ColumnType.mediumblob,
+    ColumnType.text,
+    ColumnType.tinytext,
+    ColumnType.mediumtext,
+    ColumnType.longtext,
+    ColumnType.enum,
+  ].includes(type);
+}
+
+export function isDateType(type: ColumnType): boolean {
+  return [ColumnType.datetime, ColumnType.date, ColumnType.timestamp, ColumnType.time, ColumnType.year].includes(type);
+}
+
+export function columnHasChanged(oldColumn: Columns, newColumn: ColumnMetadata): boolean {
+  const typeDb = oldColumn.getType();
+  const isEnum = typeDb.type === ColumnType.enum;
+  if (isEnum) {
+    newColumn = { ...newColumn, type: ColumnType.enum };
+  }
+  newColumn = applyDefaultValues(newColumn);
+  const columnTypeLower = oldColumn.COLUMN_TYPE.toLowerCase();
+  const defaultValue = oldColumn.getDefaultValue();
+  const newDefaultValue = newColumn.defaultRaw
+    ? newColumn.defaultRaw === 'CURRENT_TIMESTAMP'
+      ? 'now()'
+      : newColumn.defaultRaw.toLowerCase()
+    : isDate(newColumn.defaultValue)
+    ? format(newColumn.defaultValue, 'yyyy-MM-dd hh:mm:ss')
+    : isString(newColumn.defaultValue)
+    ? newColumn.defaultValue.toLowerCase()
+    : newColumn.defaultValue;
+  /*logColumnChanges(oldColumn.COLUMN_NAME, {
+    oldColumn,
+    newDefaultValue,
+    defaultValue,
+    columnTypeLower,
+    newColumn,
+    typeDb,
+    isEnum,
+  });*/
+  return (
+    (oldColumn.IS_NULLABLE === 'YES') !== !!newColumn.nullable ||
+    (oldColumn.COLUMN_COMMENT || undefined) !== newColumn.comment ||
+    (isEnum && !isArrayEqual(typeDb.enumValues, extractEnumValues(newColumn.enumValue))) ||
+    typeDb.type !== newColumn.type ||
+    typeDb.length !== newColumn.length ||
+    typeDb.precision !== newColumn.precision ||
+    typeDb.scale !== newColumn.scale ||
+    oldColumn.COLLATION_NAME != newColumn.collate ||
+    (columnTypeLower.includes('unsigned') && !newColumn.unsigned) ||
+    (columnTypeLower.includes('zerofill') && !newColumn.zerofill) ||
+    (!isNullOrUndefined(defaultValue) && defaultValue !== newDefaultValue)
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function logColumnChanges(
+  name: string,
+  {
+    newColumn,
+    oldColumn,
+    typeDb,
+    defaultValue,
+    isEnum,
+    columnTypeLower,
+    newDefaultValue,
+  }: {
+    typeDb: {
+      type: ColumnType;
+      length?: number;
+      precision?: number;
+      scale?: number;
+      enumValues?: string[];
+    };
+    isEnum: boolean;
+    columnTypeLower: string;
+    defaultValue: any;
+    newDefaultValue: any;
+    oldColumn: Columns;
+    newColumn: ColumnMetadata;
+  }
+): void {
+  /* eslint-disable no-console */
+  // TODO LOGGER
+  console.log(`COLUMN: ${name}`);
+  console.table([
+    {
+      prop: 'nullable',
+      changed: (oldColumn.IS_NULLABLE === 'YES') !== !!newColumn.nullable,
+      dbValue: oldColumn.IS_NULLABLE,
+      newValue: newColumn.nullable,
+    },
+    {
+      prop: 'comment',
+      changed: (oldColumn.COLUMN_COMMENT || undefined) !== newColumn.comment,
+      dbValue: oldColumn.COLUMN_COMMENT,
+      newValue: newColumn.comment,
+    },
+    {
+      prop: 'enum',
+      changed: isEnum && !isArrayEqual(typeDb.enumValues, extractEnumValues(newColumn.enumValue)),
+      dbValue: typeDb.enumValues,
+      newValue: extractEnumValues(newColumn.enumValue),
+    },
+    {
+      prop: 'type',
+      changed: typeDb.type !== newColumn.type,
+      dbValue: typeDb.type,
+      newValue: newColumn.type,
+    },
+    {
+      prop: 'length',
+      changed: typeDb.length !== newColumn.length,
+      dbValue: typeDb.length,
+      newValue: newColumn.length,
+    },
+    {
+      prop: 'precision',
+      changed: typeDb.precision !== newColumn.precision,
+      dbValue: typeDb.precision,
+      newValue: newColumn.precision,
+    },
+    {
+      prop: 'scale',
+      changed: typeDb.scale !== newColumn.scale,
+      dbValue: typeDb.scale,
+      newValue: newColumn.scale,
+    },
+    {
+      prop: 'collate',
+      changed: oldColumn.COLLATION_NAME != newColumn.collate,
+      dbValue: oldColumn.COLLATION_NAME,
+      newValue: newColumn.collate,
+    },
+    {
+      prop: 'unsigned',
+      changed: columnTypeLower.includes('unsigned') !== !!newColumn.unsigned,
+      dbValue: columnTypeLower.includes('unsigned'),
+      newValue: newColumn.unsigned,
+    },
+    {
+      prop: 'zerofill',
+      changed: columnTypeLower.includes('zerofill') !== !!newColumn.zerofill,
+      dbValue: columnTypeLower.includes('zerofill'),
+      newValue: newColumn.zerofill,
+    },
+    {
+      prop: 'default',
+      changed: defaultValue !== newDefaultValue,
+      dbValue: defaultValue,
+      newValue: newDefaultValue,
+    },
+  ]);
+  console.log('----------------------------------------');
+  /* eslint-enable no-console */
+}

@@ -26,3 +26,29 @@ export function isEqualObject(objA: any, objB: any): boolean {
 export function isObjectEmpty(value: any): value is Record<never, never> {
   return isAnyObject(value) && !Object.keys(value).length;
 }
+
+export function isArrayEqual(valueA: any[] | undefined, valueB: any[] | undefined): boolean {
+  if (!valueA || !valueB || valueA?.length !== valueB?.length) {
+    return false;
+  }
+  return valueA.every((val, index) => val === valueB[index]);
+}
+
+export function uniqWith<T>(array: T[], comparator: (valueA: T, valueB: T) => boolean): T[] {
+  if (!array?.length) {
+    return [];
+  }
+  const set = new Set<number>();
+  const len = array.length;
+  for (let i = 0; i < len; i++) {
+    for (let j = i + 1; j < len; j++) {
+      const valueA = array[i];
+      const valueB = array[j];
+      if (comparator(valueA, valueB)) {
+        set.add(i);
+        break;
+      }
+    }
+  }
+  return array.filter((_, index) => !set.has(index));
+}

@@ -1,16 +1,17 @@
 import { EntityMetadata } from '../entity/entity.ts';
 import { ColumnMetadata } from '../entity/column.ts';
-import { isFunction, isString } from 'is-what';
+import { isString } from 'is-what';
 import { Injectable } from '../injector/injectable.ts';
 import { injector } from '../injector/injector.ts';
 import { IndexMetadata } from '../entity/indexes.ts';
 import { RelationMetadata, RelationType } from '../entity/relation.ts';
 import { NamingStrategy } from '../shared/naming-strategy.ts';
 import { Type } from '../shared/type.ts';
+import { StMap } from '../shared/map.ts';
 
 @Injectable()
 export class EntityStore {
-  #state = new Map<any, EntityMetadata>();
+  #state = new StMap<any, EntityMetadata>(() => ({ columnsMetadata: new StMap(), relationsMetadata: new StMap() }));
 
   get(target: any): EntityMetadata | undefined {
     return this.#state.get(target);
@@ -21,22 +22,10 @@ export class EntityStore {
     return this.#state.get(target)!;
   }
 
-  getOrCreate(target: any): EntityMetadata {
-    let meta = this.get(target);
-    if (!meta) {
-      meta = this.set(target, { columnsMetadata: new Map(), relationsMetadata: new Map() });
-    }
-    return meta;
-  }
-
   upsert(target: any, callback: (meta: EntityMetadata) => EntityMetadata): void;
   upsert(target: any, partial: Partial<EntityMetadata>): void;
   upsert(target: any, partialOrCallback: Partial<EntityMetadata> | ((meta: EntityMetadata) => EntityMetadata)): void {
-    const callback: (meta: EntityMetadata) => EntityMetadata = isFunction(partialOrCallback)
-      ? partialOrCallback
-      : entity => ({ ...entity, ...partialOrCallback });
-    const meta = this.getOrCreate(target);
-    this.#state.set(target, callback(meta));
+    this.#state.upsert(target, partialOrCallback);
   }
 
   private addColumn(target: any, metadata: ColumnMetadata): void {
@@ -56,16 +45,10 @@ export class EntityStore {
     propertyKey: string,
     partial: Partial<ColumnMetadata> | ((columnMetadata: ColumnMetadata | undefined) => ColumnMetadata)
   ): void {
-    const callback: (columnMetadata: ColumnMetadata | undefined) => ColumnMetadata = isFunction(partial)
-      ? partial
-      : c => ({ ...c, ...partial });
-    this.upsert(target, entity => {
-      const columnMeta = entity.columnsMetadata.get(propertyKey);
-      const newMeta = callback(columnMeta);
-      const newMap = entity.columnsMetadata.set(propertyKey, newMeta);
+    this.#state.upsert(target, entity => {
       return {
         ...entity,
-        columnsMetadata: newMap,
+        columnsMetadata: entity.columnsMetadata.update(propertyKey, partial),
       };
     });
   }
@@ -78,26 +61,22 @@ export class EntityStore {
       | Partial<ColumnMetadata>
       | ((columnMetadata: ColumnMetadata | undefined) => ColumnMetadata)
   ): void {
-    const targetMeta = this.getOrCreate(target);
-    let columnMeta = targetMeta.columnsMetadata.get(propertyKey);
-    if (isFunction(metadata)) {
-      columnMeta = metadata(columnMeta);
-    } else {
-      columnMeta = { ...columnMeta, ...metadata };
-    }
+    this.#state.upsert(target, entity => {
+      return {
+        ...entity,
+        columnsMetadata: entity.columnsMetadata.upsert(propertyKey, metadata),
+      };
+    });
+    const targetMeta = this.#state.get(target)!;
+    const columnMeta = targetMeta.columnsMetadata.get(propertyKey)!;
     if (columnMeta.unique) {
       this.addUniqueIndex(target, propertyKey);
-    }
-    if (targetMeta.columnsMetadata.has(propertyKey)) {
-      this.updateColumn(target, propertyKey, metadata);
-    } else {
-      this.addColumn(target, isFunction(metadata) ? metadata({ propertyKey }) : metadata);
     }
   }
 
   addIndex(target: any, metadata: IndexMetadata, propertyKey?: string): void {
     if (metadata.columns) {
-      this.upsert(target, entity => {
+      this.#state.upsert(target, entity => {
         return {
           ...entity,
           indexes: [...(entity?.indexes ?? []), metadata],
@@ -126,46 +105,25 @@ export class EntityStore {
   }
 
   upsertRelation(target: any, propertyKey: string, metadata: RelationMetadata | Partial<RelationMetadata>): void {
-    const targetMeta = this.getOrCreate(target);
-    const relationMeta = targetMeta.relationsMetadata.get(propertyKey);
-    if (!relationMeta) {
-      if (!metadata.propertyKey) {
-        throw new Error(`propertyKey is required on ${target.name} - ${metadata.type} - ${metadata.reference}`);
-      }
-      this.upsert(target, entity => {
-        return {
-          ...entity,
-          relationsMetadata: entity.relationsMetadata.set(propertyKey, metadata as RelationMetadata),
-          relationProperties: { ...entity.relationProperties, [propertyKey]: propertyKey },
-        };
-      });
-    } else {
-      this.upsert(target, entity => {
-        return {
-          ...entity,
-          relationsMetadata: entity.relationsMetadata.set(propertyKey, { ...relationMeta, ...metadata }),
-          relationProperties: { ...entity.relationProperties, [propertyKey]: propertyKey },
-        };
-      });
-    }
+    this.#state.upsert(target, entity => {
+      return {
+        ...entity,
+        relationsMetadata: entity.relationsMetadata.upsert(propertyKey, { ...metadata, propertyKey }),
+        relationProperties: { ...entity.relationProperties, [propertyKey]: propertyKey },
+      };
+    });
   }
 
-  getEntitiesConnection(connection = 'default'): Map<any, EntityMetadata> {
-    const map = new Map<any, EntityMetadata>();
-    for (const [entity, meta] of this.#state) {
-      if (meta.connection === connection) {
-        map.set(entity, meta);
-      }
-    }
-    return map;
+  getEntitiesConnection(connection = 'default'): StMap<any, EntityMetadata> {
+    return this.#state.filter((_, entityMetadata) => entityMetadata.connection === connection);
   }
 
   private resolveJoinReference(
-    entitiesMap: Map<any, EntityMetadata>,
+    entitiesMap: StMap<any, EntityMetadata>,
     namingStrategy: NamingStrategy,
     name: string
   ): Type | undefined {
-    return [...entitiesMap.entries()].find(([, entity]) => namingStrategy.tableName(entity.name!) === name)?.[0];
+    return entitiesMap.find((_, entity) => namingStrategy.tableName(entity.name!) === name)?.[0];
   }
 
   updateDefaults(connection: string, namingStrategy: NamingStrategy): void {

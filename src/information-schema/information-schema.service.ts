@@ -36,12 +36,15 @@ export class InformationSchemaService {
       .getMany();
   }
 
-  async getAllTables(includeColumns = false): Promise<Tables[]> {
+  async getAllTables(includeColumns = false, includeIndexes = false): Promise<Tables[]> {
     const qb = this.tableRepository
       .createQueryBuilder('t')
       .andWhere('t.table_schema = :schema', { schema: this.options.db });
     if (includeColumns) {
-      qb.innerJoinAndSelect('t.columns', 'c');
+      qb.leftJoinAndSelect(['t', Columns], 'c');
+    }
+    if (includeIndexes) {
+      qb.leftJoinAndSelect(['c', Statistics], 'i');
     }
     return qb.getMany();
   }

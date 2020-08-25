@@ -3,18 +3,19 @@ import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { isFunction } from 'is-what';
 import { PARAM_INDEX_METADATA } from './inject.ts';
 import { Provider } from './provider.ts';
+import { StMap } from '../shared/map.ts';
 
 export const CLASS_INJECTABLE_METADATA = '__CLASS_INJECTABLE_METADATA__';
 
 export class Injector {
-  static injectables = new Map<any, boolean>();
+  static injectables = new StMap<any, boolean>();
 
   static isInjectable(target: any): boolean {
     return Injector.injectables.has(target);
   }
 
-  private _providers = new Map<any, Provider>();
-  private _cache = new Map<any, any>();
+  private _providers = new StMap<any, Provider>();
+  private _cache = new StMap<any, any>();
 
   private resolveClass<T>(target: Type<T>): T {
     let params: Type[] = ReflectMetadata.getMetadata(ReflectMetadataTypes.paramTypes, target);

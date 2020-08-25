@@ -2,14 +2,13 @@ import { isAnyObject, isArray, isFunction, isNullOrUndefined, isNumber, isString
 import { EntityMetadata } from '../entity/entity.ts';
 import { Type } from '../shared/type.ts';
 import { NamingStrategy } from '../shared/naming-strategy.ts';
-import { isType } from '../shared/util.ts';
+import { isType, uniqWith } from '../shared/util.ts';
 import { replaceParams } from 'sql-builder';
 import { getAlias } from './util.ts';
 import { Driver } from '../driver/driver.ts';
 import { plainToClass } from '../node-libs/class-transformer.ts';
 import { ColumnMetadata } from '../entity/column.ts';
 import { RelationMetadata, RelationType } from '../entity/relation.ts';
-import uniqWith from 'http://deno.land/x/lodash@4.17.15-es/uniqWith.js';
 
 export interface QueryBuilderSelect {
   selection: string;
@@ -456,12 +455,13 @@ export class SelectQueryBuilder<T> {
     params?: Record<string, any>,
     includeSelect = false
   ): [QueryBuilderJoin, QueryBuilderSelect[]] {
-    const [tableAlias, relation] = join.split('.');
+    const [tableAlias, relation] = (join ?? '').split('.');
     if (!tableAlias || !relation) {
       throw new Error(`you're supposed to pass the join arg mate :)`);
     }
-    const targetMeta = this.#fromStore.find(from => from.alias.toUpperCase() === tableAlias.toUpperCase())
-      ?.fromEntityMetadata;
+    const targetMeta =
+      this.#fromStore.find(from => from.alias === tableAlias)?.fromEntityMetadata ??
+      this.#joinStore.find(j => j.realAlias === tableAlias)?.fromEntityMetadata;
     const relationMeta = targetMeta?.relationsMetadata.get(relation);
     if (!relationMeta) {
       throw new Error(`Couldn't find relation "${join}"`);
@@ -482,35 +482,39 @@ export class SelectQueryBuilder<T> {
 
   private _joinByType(
     type: QueryBuilderJoinType,
-    join: Type,
+    join: [string, Type],
     alias: string,
     condition?: string,
     params?: Record<string, any>,
     includeSelect = false
   ): [QueryBuilderJoin, QueryBuilderSelect[]] {
-    if (this.#fromStore.length > 1) {
-      throw new Error(`It is only possible to join with type when there's only one "from" table`);
+    const [tableAlias, joinType] = join;
+    const from =
+      this.#fromStore.find(fr => fr.alias === tableAlias) ?? this.#joinStore.find(j => j.realAlias === tableAlias);
+    if (!from) {
+      throw new Error(`Could not find alias "${tableAlias}"`);
     }
-    const from = this.#fromStore[0];
     if (!from.fromEntity || !from.fromEntityMetadata) {
       throw new Error(`Could not find metadata for ${from.alias}`);
     }
-    let relationMeta: RelationMetadata | undefined;
-    let referenceMeta: EntityMetadata | undefined;
-    let reference: Type | undefined;
-    for (const [, rel] of from.fromEntityMetadata.relationsMetadata) {
-      const [_ref, _refMeta] = this._joinResolveReference(rel);
-      if (_ref === join) {
-        relationMeta = rel;
-        referenceMeta = _refMeta;
-        reference = _ref;
-      }
+
+    const relationMetaMap = from.fromEntityMetadata.relationsMetadata.filter(
+      (key, rel) => rel.referenceType === joinType
+    );
+    if (!relationMetaMap.size) {
+      throw new Error(`Could not find any relation between alias "${tableAlias}" and "${joinType.name}"`);
     }
+    if (relationMetaMap.size > 1) {
+      throw new Error(`Found two relations between alias "${tableAlias}" and "${joinType.name}"`);
+    }
+    const [, relationMeta] = relationMetaMap.first()!;
+    const referenceMeta = this.entitiesMap.get(relationMeta?.referenceType);
+    const reference = relationMeta?.referenceType;
     if (!relationMeta || !referenceMeta || !reference) {
-      throw new Error(`Couldn't find any relation from type ${join?.name ?? join}`);
+      throw new Error(`Couldn't find any relation from type "${joinType.name}"`);
     }
     return this._joinFinal({
-      tableAlias: from.alias,
+      tableAlias,
       relationMeta,
       referenceMeta,
       reference,
@@ -545,7 +549,7 @@ export class SelectQueryBuilder<T> {
 
   private _join(
     type: QueryBuilderJoinType,
-    join: string | Type | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
+    join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
     params?: Record<string, any>,
@@ -556,7 +560,7 @@ export class SelectQueryBuilder<T> {
     }
     if (isString(join)) {
       return this._joinByName(type, join, alias, condition, params, includeSelect);
-    } else if (isType(join)) {
+    } else if (isArray(join) && join.length === 2) {
       return this._joinByType(type, join, alias, condition, params, includeSelect);
     } else if (isFunction(join)) {
       if (!condition) {
@@ -564,12 +568,12 @@ export class SelectQueryBuilder<T> {
       }
       return this._joinByCallback(type, join, alias, condition, params);
     } else {
-      throw new Error('Join must be of type string, Type or callback function');
+      throw new Error('Join must be of type string, [alias, Type] or callback function');
     }
   }
 
   innerJoinAndSelect(joinName: string, alias: string, condition?: string, params?: Record<string, any>): this;
-  innerJoinAndSelect(joinEntity: Type, alias: string, condition?: string, params?: Record<string, any>): this;
+  innerJoinAndSelect(joinEntity: [string, Type], alias: string, condition?: string, params?: Record<string, any>): this;
   innerJoinAndSelect(
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
@@ -577,7 +581,7 @@ export class SelectQueryBuilder<T> {
     params?: Record<string, any>
   ): this;
   innerJoinAndSelect(
-    join: string | Type | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
+    join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
     params?: Record<string, any>
@@ -589,7 +593,7 @@ export class SelectQueryBuilder<T> {
   }
 
   innerJoin(joinName: string, alias: string, condition?: string, params?: Record<string, any>): this;
-  innerJoin(joinEntity: Type, alias: string, condition?: string, params?: Record<string, any>): this;
+  innerJoin(joinEntity: [string, Type], alias: string, condition?: string, params?: Record<string, any>): this;
   innerJoin(
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
@@ -597,7 +601,7 @@ export class SelectQueryBuilder<T> {
     params?: Record<string, any>
   ): this;
   innerJoin(
-    join: string | Type | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
+    join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
     params?: Record<string, any>
@@ -609,7 +613,7 @@ export class SelectQueryBuilder<T> {
   }
 
   leftJoinAndSelect(joinName: string, alias: string, condition?: string, params?: Record<string, any>): this;
-  leftJoinAndSelect(joinEntity: Type, alias: string, condition?: string, params?: Record<string, any>): this;
+  leftJoinAndSelect(joinEntity: [string, Type], alias: string, condition?: string, params?: Record<string, any>): this;
   leftJoinAndSelect(
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
@@ -617,7 +621,7 @@ export class SelectQueryBuilder<T> {
     params?: Record<string, any>
   ): this;
   leftJoinAndSelect(
-    join: string | Type | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
+    join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
     params?: Record<string, any>
@@ -629,7 +633,7 @@ export class SelectQueryBuilder<T> {
   }
 
   leftJoin(joinName: string, alias: string, condition?: string, params?: Record<string, any>): this;
-  leftJoin(joinEntity: Type, alias: string, condition?: string, params?: Record<string, any>): this;
+  leftJoin(joinEntity: [string, Type], alias: string, condition?: string, params?: Record<string, any>): this;
   leftJoin(
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
@@ -637,7 +641,7 @@ export class SelectQueryBuilder<T> {
     params?: Record<string, any>
   ): this;
   leftJoin(
-    join: string | Type | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
+    join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
     params?: Record<string, any>
@@ -796,9 +800,11 @@ export class SelectQueryBuilder<T> {
       }
     }
     // TODO LOGGER
+    /* eslint-disable no-console */
     console.log('------- QUERY BEGIN -------');
     console.log(replaceParams(query, params));
     console.log('------- QUERY END -------');
+    /* eslint-enable no-console */
     return [query, params];
   }
 }

@@ -2,12 +2,15 @@ import { Client } from 'mysql';
 import { NamingStrategy } from '../shared/naming-strategy.ts';
 import { EntityMetadata } from '../entity/entity.ts';
 import { Connection, ConnectionConfig } from '../connection/connection.ts';
-import { resolveColumn } from '../entity/column.ts';
+import { columnHasChanged, ColumnMetadata, resolveColumn } from '../entity/column.ts';
 import { indexHasChanged, IndexMetadata, resolveIndex } from '../entity/indexes.ts';
 import { SelectQueryBuilder } from '../query-builder/query-builder.ts';
 import { InformationSchemaService } from '../information-schema/information-schema.service.ts';
 import { replaceParams } from 'sql-builder';
 import { Tables } from '../information-schema/tables.entity.ts';
+import { RelationMetadata, resolveRelation } from '../entity/relation.ts';
+import { Columns } from '../information-schema/columns.entity.ts';
+import Ask from 'ask';
 
 export class Driver {
   constructor(
@@ -44,27 +47,49 @@ export class Driver {
 
   async sync(): Promise<void> {
     const statements: [string, any[]][] = [];
-    /*const indexes = await this.informationSchemaService.getIndexes(['perfil', 'user']);
-    for (const index of uniqBy(indexes, (o: any) => o.INDEX_NAME)) {
-      await this.client.execute('drop index ?? on ??', [index.INDEX_NAME, index.TABLE_NAME]);
-    }*/
-    const tables = await this.informationSchemaService.getAllTables(true);
-    if (this.options.sync && this.options.syncOptions?.deleteTablesWithoutEntityDefinition) {
-      statements.push(...(await this.checkForTablesWithoutEntityDefinition(tables)));
+    const tables = await this.informationSchemaService.getAllTables(true, true);
+    if (this.options.syncOptions?.dropUnknownTables) {
+      statements.push(...(await this.checkForUnknownTables(tables)));
     }
     for (const [, entity] of this.entitiesMap) {
       if (entity.sync) {
-        const tableStatements = await this.getTableStatement(entity);
+        const tableDb = tables.find(table => table.TABLE_NAME === this.namingStrategy.tableName(entity.name!));
+        const tableStatements = await this.getTableStatement(entity, tableDb);
         statements.push(...tableStatements);
       }
     }
-    for (const [sql, params] of statements) {
-      console.log(replaceParams(sql, params));
+    if (this.options.syncOptions?.askBeforeSync) {
+      for (const [sql, params] of statements) {
+        // TODO LOGGER
+        // eslint-disable-next-line no-console
+        console.log(replaceParams(sql, params));
+      }
+      const ask = new Ask();
+      const { confirmed } = await ask.confirm({
+        name: 'confirmed',
+        accept: 'Y',
+        deny: 'N',
+        default: 'N',
+        message: 'Apply the changes above in the database?',
+      });
+      if (confirmed) {
+        for (const [sql, params] of statements) {
+          // TODO APPLY CHANGES DB
+          // await this.client.execute(sql, params);
+        }
+      }
+    } else {
+      for (const [sql, params] of statements) {
+        // TODO LOGGER
+        // eslint-disable-next-line no-console
+        console.log(replaceParams(sql, params));
+        // TODO APPLY CHANGES DB
+        // await this.client.execute(sql, params);
+      }
     }
-    /*await this.client.execute(replaceParams(statements, params));*/
   }
 
-  private async checkForTablesWithoutEntityDefinition(tables: Tables[]): Promise<[string, any[]][]> {
+  private async checkForUnknownTables(tables: Tables[]): Promise<[string, any[]][]> {
     const statements: [string, any[]][] = [];
     const entities = [...this.entitiesMap.values()];
     for (const table of tables) {
@@ -76,37 +101,77 @@ export class Driver {
     return statements;
   }
 
-  private async getTableStatement({
-    columnsMetadata,
-    name,
-    indexes,
-    relationsMetadata,
-    comment,
-  }: EntityMetadata): Promise<[string, any[]][]> {
+  private async checkForUnknownColumns(
+    tableName: string,
+    columnsMetadataMap: Map<string, ColumnMetadata>,
+    columnsDb: Columns[]
+  ): Promise<[string, any[]][]> {
+    const statements: [string, any[]][] = [];
+    const columns = [...columnsMetadataMap.values()].map(col => this.namingStrategy.columnName(col.name!));
+    for (const colDb of columnsDb) {
+      if (!columns.includes(colDb.COLUMN_NAME)) {
+        statements.push(['ALTER TABLE ??.?? DROP COLUMN ??', [this.options.db, tableName, colDb.COLUMN_NAME]]);
+      }
+    }
+    return statements;
+  }
+
+  private async getTableStatement(
+    { columnsMetadata, name, indexes, relationsMetadata, comment }: EntityMetadata,
+    tableDb?: Tables
+  ): Promise<[string, any[]][]> {
     const statements: [string, any[]][] = [];
     name = this.namingStrategy.tableName(name!);
     const columnIndexes: [string, IndexMetadata[]][] = [];
-    // statements.push([`DROP TABLE IF EXISTS ??.??`, [this.options.db, name]]);
-    let statement = `CREATE TABLE ??.?? (`;
-    const params = [];
-    params.push(this.options.db, name);
-    for (let [columnName, columnMeta] of columnsMetadata) {
-      columnName = this.namingStrategy.columnName(columnMeta.name!);
-      const [columnQuery, queryParams] = resolveColumn[columnMeta.type!]({ ...columnMeta, name: columnName });
-      statement += `${columnQuery},`;
-      params.push(...queryParams);
-      if (columnMeta.indexes?.length) {
-        columnIndexes.push([columnName, columnMeta.indexes]);
+    if (!tableDb) {
+      let statement = `CREATE TABLE ??.?? (`;
+      const params = [];
+      params.push(this.options.db, name);
+      for (let [columnName, columnMeta] of columnsMetadata) {
+        columnName = this.namingStrategy.columnName(columnMeta.name!);
+        const [columnQuery, queryParams] = resolveColumn[columnMeta.type!]({ ...columnMeta, name: columnName });
+        statement += `${columnQuery},`;
+        params.push(...queryParams);
+        if (columnMeta.indexes?.length) {
+          columnIndexes.push([columnName, columnMeta.indexes]);
+        }
+      }
+      statement = statement.slice(0, -1) + ')';
+      if (comment) {
+        statement += ' COMMENT ?';
+        params.push(comment);
+      }
+      statements.push([statement, params]);
+    } else {
+      if ((tableDb.TABLE_COMMENT || undefined) !== comment) {
+        statements.push(['ALTER TABLE ??.?? COMMENT = ?', [this.options.db, name, comment]]);
+      }
+      if (this.options.syncOptions?.dropUnkownColumns) {
+        statements.push(...(await this.checkForUnknownColumns(name, columnsMetadata, tableDb.columns)));
+      }
+      for (let [columnName, columnMeta] of columnsMetadata) {
+        columnName = this.namingStrategy.columnName(columnMeta.name!);
+        const columnDb = tableDb.columns.find(colDb => {
+          return colDb.COLUMN_NAME === columnName;
+        });
+        if (columnDb && !columnHasChanged(columnDb, columnMeta)) {
+          continue;
+        }
+        let statement = `ALTER TABLE ??.?? ${columnDb ? 'MODIFY' : 'ADD'} `;
+        const params = [this.options.db, tableDb.TABLE_NAME];
+        const [columnStatement, columnParams] = resolveColumn[columnMeta.type!]({ ...columnMeta, name: columnName });
+        statement += columnStatement;
+        params.push(...columnParams);
+        statements.push([statement, params]);
+        if (columnMeta.indexes?.length) {
+          columnIndexes.push([columnName, columnMeta.indexes]);
+        }
       }
     }
-    statement = statement.slice(0, -1) + ')';
-    if (comment) {
-      statement += ' COMMENT ?';
-      params.push(comment);
-    }
-    statements.push([statement, params]);
     const indexStatements = await this.getIndexesStatement(name, columnIndexes, indexes);
     statements.push(...indexStatements);
+    const relationStatements = await this.getRelationStatements(name, relationsMetadata);
+    statements.push(...relationStatements);
     return statements;
   }
 
@@ -159,8 +224,28 @@ export class Driver {
     return statements;
   }
 
-  private async getRelationStatements(): Promise<[string, any[]][]> {
+  private async getRelationStatements(
+    tableName: string,
+    relationsMetadata: Map<string, RelationMetadata>
+  ): Promise<[string, any[]][]> {
     const statements: [string, any[]][] = [];
-    return [];
+    for (const [, relationMeta] of relationsMetadata) {
+      if (relationMeta.owner) {
+        const referencedTableName = this.namingStrategy.tableName(
+          this.entitiesMap.get(relationMeta.referenceType)!.name!
+        );
+        const columns = relationMeta.joinColumns!.map(j => j.name!);
+        const referencedColumns = relationMeta.joinColumns!.map(j => j.referencedColumn!);
+        const relationName = this.namingStrategy.foreignKeyName({
+          tableName,
+          columns,
+          referencedTableName,
+          referencedColumns,
+          options: relationMeta,
+        });
+        statements.push(resolveRelation(this.options.db!, tableName, relationName, referencedTableName, relationMeta));
+      }
+    }
+    return statements;
   }
 }

@@ -1,5 +1,8 @@
 import { Entity } from '../entity/entity.ts';
 import { Column } from '../entity/column.ts';
+import { ManyToOne } from '../entity/many-to-one.ts';
+import { Columns } from './columns.entity.ts';
+import { JoinColumn } from '../entity/join-column.ts';
 
 @Entity({ connection: 'information_schema', sync: false })
 export class Statistics {
@@ -21,4 +24,21 @@ export class Statistics {
   @Column() INDEX_COMMENT!: string;
   @Column({ select: false }) IS_VISIBLE?: 'YES' | 'NO';
   @Column({ select: false }) EXPRESSION?: string;
+
+  @ManyToOne(() => Columns, 'indexes')
+  @JoinColumn([
+    {
+      name: 'TABLE_SCHEMA',
+      referencedColumn: 'TABLE_SCHEMA',
+    },
+    {
+      name: 'TABLE_NAME',
+      referencedColumn: 'TABLE_NAME',
+    },
+    {
+      name: 'COLUMN_NAME',
+      referencedColumn: 'COLUMN_NAME',
+    },
+  ])
+  column!: Columns;
 }

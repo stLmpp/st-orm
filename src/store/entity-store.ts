@@ -254,6 +254,7 @@ export class EntityStore {
               name: joinColumn.name,
               primary: true,
               dbName: joinColumn.name,
+              select: true,
             });
           }
           const relationsMetadata = new StMap<string, RelationMetadata>()
@@ -305,38 +306,6 @@ export class EntityStore {
           };
           const clazz = class {}; // TODO HERE
           this.upsert(clazz, joinEntity);
-          /*this.upsertRelation(targetKey, name, {
-            inverse: type => type[ownerTableName],
-            propertyKey: ownerTableName,
-            type: RelationType.oneToMany,
-            reference: clazz,
-            referenceType: clazz,
-            joinColumns: joinColumns.map(joinColumn => ({
-              name: joinColumn.referencedColumn,
-              referencedColumn: joinColumn.name,
-            })),
-            cascadeOptions: {
-              [RelationCascade.delete]: false,
-              [RelationCascade.insert]: false,
-              [RelationCascade.update]: false,
-            },
-          });
-          this.upsertRelation(relation.referenceType, name, {
-            inverse: type => type[tableName],
-            propertyKey: ownerTableName,
-            type: RelationType.oneToMany,
-            referenceType: clazz,
-            reference: clazz,
-            joinColumns: inverseJoinColumns.map(joinColumn => ({
-              name: joinColumn.referencedColumn,
-              referencedColumn: joinColumn.name,
-            })),
-            cascadeOptions: {
-              [RelationCascade.delete]: false,
-              [RelationCascade.insert]: false,
-              [RelationCascade.update]: false,
-            },
-          });*/
           relation = {
             ...relation,
             joinTable: {

@@ -72,7 +72,7 @@ export interface QueryBuilderJoin {
 interface QueryBuilderJoinFinalArgs {
   relationMeta: RelationMetadata;
   condition?: string;
-  params?: Record<string, any>;
+  params?: Record<string, any> | any[];
   tableAlias: string;
   alias: string;
   reference: Type;
@@ -250,7 +250,10 @@ export class SelectQueryBuilder<T> {
     return this;
   }
 
-  private _replaceParams(statement: string, params?: Record<string, any>): [string, any[]] {
+  private _replaceParams(statement: string, params?: Record<string, any> | any[]): [string, any[]] {
+    if (isArray(params)) {
+      return [statement, params];
+    }
     if (!statement.includes(':') || !params) {
       return [statement, []];
     }
@@ -264,11 +267,11 @@ export class SelectQueryBuilder<T> {
 
   private _where(
     where: string | ((queryBuilder: this) => this) | QueryBuilderWhereParams,
-    params?: QueryBuilderWhereParams | string,
+    params?: QueryBuilderWhereParams | string | any[],
     operator = QueryBuilderWhereOperator.and
   ): QueryBuilderWhere[] {
     if (isString(where)) {
-      const [newWhere, newParams] = this._replaceParams(where, params as QueryBuilderWhereParams);
+      const [newWhere, newParams] = this._replaceParams(where, params as any);
       return [{ where: newWhere, params: newParams, operator }];
     } else if (isFunction(where)) {
       const [newWhere, newParams] = where(this).getQueryAndParameters();
@@ -284,34 +287,34 @@ export class SelectQueryBuilder<T> {
     }
   }
 
-  where(where: string, params?: QueryBuilderWhereParams): this;
+  where(where: string, params?: QueryBuilderWhereParams | any[]): this;
   where(where: (queryBuilder: this) => this): this;
   where(where: QueryBuilderWhereParams, tableAlias: string): this;
   where(
     where: string | ((queryBuilder: this) => this) | QueryBuilderWhereParams,
-    params?: QueryBuilderWhereParams | string
+    params?: QueryBuilderWhereParams | string | any[]
   ): this {
     this.#whereStore = this._where(where, params);
     return this;
   }
 
-  andWhere(where: string, params?: QueryBuilderWhereParams): this;
+  andWhere(where: string, params?: QueryBuilderWhereParams | any[]): this;
   andWhere(where: (queryBuilder: this) => this): this;
   andWhere(where: QueryBuilderWhereParams, tableAlias: string): this;
   andWhere(
     where: string | ((queryBuilder: this) => this) | QueryBuilderWhereParams,
-    params?: QueryBuilderWhereParams | string
+    params?: QueryBuilderWhereParams | string | any[]
   ): this {
     this.#whereStore.push(...this._where(where, params));
     return this;
   }
 
-  orWhere(where: string, params?: QueryBuilderWhereParams): this;
+  orWhere(where: string, params?: QueryBuilderWhereParams | any[]): this;
   orWhere(where: (queryBuilder: this) => this): this;
   orWhere(where: QueryBuilderWhereParams, tableAlias: string): this;
   orWhere(
     where: string | ((queryBuilder: this) => this) | QueryBuilderWhereParams,
-    params?: QueryBuilderWhereParams | string
+    params?: QueryBuilderWhereParams | string | any[]
   ): this {
     this.#whereStore.push(...this._where(where, params, QueryBuilderWhereOperator.or));
     return this;
@@ -417,6 +420,28 @@ export class SelectQueryBuilder<T> {
           newCondition += ' AND ';
         }
       }
+    } else if (relationMeta.type === RelationType.manyToMany && relationMeta.joinTable) {
+      const relationMetadataMany = this.#entitiesMap.get(relationMeta.joinTable.type)!;
+      for (let i = 0, len = relationMeta.joinTable.inverseJoinColumns.length; i < len; i++) {
+        const joinColumn = relationMeta.joinTable.inverseJoinColumns[i];
+        newCondition += ' ??.?? = ??.?? ';
+        conditionParams.push(
+          `${tableAlias}_${relationMetadataMany.dbName}`,
+          joinColumn.name,
+          alias,
+          joinColumn.referencedColumn
+        );
+        if (i + 1 < relationMeta.joinTable.inverseJoinColumns.length) {
+          newCondition += ' AND ';
+        }
+      }
+      if (includeSelect) {
+        const selectionsMany = this._getSelectableColumns(
+          relationMetadataMany,
+          `${tableAlias}_${relationMetadataMany.dbName}`
+        );
+        this.#selectStore.push(...selectionsMany);
+      }
     }
     return [
       {
@@ -465,20 +490,6 @@ export class SelectQueryBuilder<T> {
       throw new Error(`Couldn't find relation "${join}"`);
     }
     const [reference, referenceMeta] = this._joinResolveReference(relationMeta);
-    /*if (relationMeta.type === RelationType.manyToMany) {
-      const joinMeta = this.#entitiesMap.get(relationMeta.joinTable!.type)!;
-      const [manySql] = this._join(
-        type,
-        `${tableAlias}.${relationMeta.joinTable!.name!}`,
-        `${tableAlias}_${relationMeta.joinTable!.name!}`
-      );
-      this.#joinStore.push(manySql);
-      tableAlias = `${tableAlias}_${relationMeta.joinTable!.name!}`;
-      relationMeta = joinMeta.relationsMetadata.get(this.namingStrategy.tableName(referenceMeta.name!))!;
-      const [_ref, _refMeta] = this._joinResolveReference(relationMeta);
-      reference = _ref;
-      referenceMeta = _refMeta;
-    }*/
     return this._joinFinal({
       alias,
       condition,
@@ -497,7 +508,7 @@ export class SelectQueryBuilder<T> {
     join: [string, Type],
     alias: string,
     condition?: string,
-    params?: Record<string, any>,
+    params?: Record<string, any> | any[],
     includeSelect = false
   ): [QueryBuilderJoin, QueryBuilderSelect[]] {
     const [tableAlias, joinType] = join;
@@ -543,7 +554,7 @@ export class SelectQueryBuilder<T> {
     join: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
     condition: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): [QueryBuilderJoin, QueryBuilderSelect[]] {
     const [query, newParams] = join(this._createNewQueryBuilder()).getQueryAndParameters();
     const [newCondition, conditionParams] = this._replaceParams(condition, params);
@@ -564,7 +575,7 @@ export class SelectQueryBuilder<T> {
     join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
-    params?: Record<string, any>,
+    params?: Record<string, any> | any[],
     includeSelect = false
   ): [QueryBuilderJoin, QueryBuilderSelect[]] {
     if (!this.#fromStore?.length) {
@@ -590,13 +601,13 @@ export class SelectQueryBuilder<T> {
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
     condition: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this;
   innerJoinAndSelect(
     join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this {
     const [joinOption, columns] = this._join(QueryBuilderJoinType.innerJoin, join, alias, condition, params, true);
     this.#joinStore.push(joinOption);
@@ -610,13 +621,13 @@ export class SelectQueryBuilder<T> {
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
     condition: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this;
   innerJoin(
     join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this {
     const [joinOption, columns] = this._join(QueryBuilderJoinType.innerJoin, join, alias, condition, params);
     this.#joinStore.push(joinOption);
@@ -630,13 +641,13 @@ export class SelectQueryBuilder<T> {
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
     condition: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this;
   leftJoinAndSelect(
     join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this {
     const [joinOption, columns] = this._join(QueryBuilderJoinType.leftJoin, join, alias, condition, params, true);
     this.#joinStore.push(joinOption);
@@ -650,13 +661,13 @@ export class SelectQueryBuilder<T> {
     callback: (queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>,
     alias: string,
     condition: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this;
   leftJoin(
     join: string | [string, Type] | ((queryBuilder: SelectQueryBuilder<any>) => SelectQueryBuilder<any>),
     alias: string,
     condition?: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | any[]
   ): this {
     const [joinOption, columns] = this._join(QueryBuilderJoinType.leftJoin, join, alias, condition, params);
     this.#joinStore.push(joinOption);
@@ -709,10 +720,42 @@ export class SelectQueryBuilder<T> {
     rawEntities: any[]
   ): any[] {
     for (const [relationKey, relation] of relationsMap) {
-      if (relation.type === RelationType.manyToMany) {
-      } else {
-        const join = this.#joinStore.find(j => j.propertyKey === relationKey && alias === j.parentAlias);
-        if (join) {
+      const join = this.#joinStore.find(j => j.propertyKey === relationKey && alias === j.parentAlias);
+      if (join) {
+        if (join.relationMetadata!.type === RelationType.manyToMany) {
+          const manyEntity = this.#entitiesMap.get(join.relationMetadata!.joinTable!.type)!;
+          let joinRawEntities: any[] = this._getRawUnique(rawData, join.realAlias!);
+          const joinManyEntities: any[] = this._getRawUnique(rawData, `${join.parentAlias}_${manyEntity.dbName}`);
+          const joinTableMeta = this.#entitiesMap.get(relation.referenceType);
+          if (joinTableMeta) {
+            joinRawEntities = this._getJoinRecusive(
+              join.realAlias!,
+              joinTableMeta.relationsMetadata,
+              rawData,
+              joinRawEntities
+            );
+          }
+          const joinEntities: any[] = plainToClass(join.fromEntity, joinRawEntities);
+          rawEntities = rawEntities.map(rawEntity => {
+            const manyRelationEntities = joinManyEntities
+              .filter(many =>
+                join.relationMetadata!.joinTable!.joinColumns.every(
+                  joinColumn => rawEntity[joinColumn.referencedColumn!] === many[joinColumn.name!]
+                )
+              )
+              .map(many =>
+                joinEntities.find(joinEntity =>
+                  join.relationMetadata!.joinTable!.inverseJoinColumns.every(
+                    joinColumn => joinEntity[joinColumn.referencedColumn!] === many[joinColumn.name!]
+                  )
+                )
+              );
+            return {
+              ...rawEntity,
+              [join.propertyKey!]: manyRelationEntities,
+            };
+          });
+        } else {
           let joinRawEntities: any[] = this._getRawUnique(rawData, join.realAlias!);
           const joinTableMeta = this.#entitiesMap.get(relation.referenceType);
           if (joinTableMeta) {
@@ -782,6 +825,26 @@ export class SelectQueryBuilder<T> {
     query = query.slice(0, -1);
     if (this.#joinStore.length) {
       for (const join of this.#joinStore) {
+        if (join.relationMetadata?.type === RelationType.manyToMany) {
+          const manyReferenceMetadata = this.#entitiesMap.get(join.relationMetadata!.joinTable!.type);
+          if (!manyReferenceMetadata || !join.relationMetadata.joinTable) {
+            throw new Error(
+              `Could not find metadata for ManyToMany ${join.parentAlias}.${join.relationMetadata.propertyKey}`
+            );
+          }
+          const manyAlias = `${join.parentAlias}_${manyReferenceMetadata.dbName}`;
+          query += ` ${join.type} ?? AS ?? ON (`;
+          params.push(manyReferenceMetadata.dbName, manyAlias);
+          for (let i = 0, len = join.relationMetadata.joinTable.joinColumns.length; i < len; i++) {
+            const joinColumn = join.relationMetadata.joinTable.joinColumns[i];
+            query += ' ??.?? = ??.?? ';
+            params.push(manyAlias, joinColumn.name, join.parentAlias, joinColumn.referencedColumn);
+            if (i + 1 < join.relationMetadata.joinTable.joinColumns.length) {
+              query += ' AND ';
+            }
+          }
+          query += ')';
+        }
         query += ` ${join.type} ${join.from} AS ${join.alias} ON (${join.condition})`;
         params.push(...(join.params ?? []));
       }

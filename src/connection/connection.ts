@@ -79,6 +79,8 @@ export class Connection {
     private entitiesMap: StMap<any, EntityMetadata>
   ) {}
 
+  #repositories = new StMap<Type, Repository<any>>();
+
   async sync(): Promise<void> {
     await this.driver.sync();
   }
@@ -88,6 +90,9 @@ export class Connection {
   }
 
   getRepository<T>(entity: Type<T>): Repository<T> {
+    if (this.#repositories.has(entity)) {
+      return this.#repositories.get(entity)!;
+    }
     if (!this.entitiesMap.has(entity)) {
       throw new Error(
         `Entity ${
@@ -95,6 +100,8 @@ export class Connection {
         } doesn't exist in this connection\nDid you forget to decorate it with @Entity()?`
       );
     }
-    return new Repository<T>(entity, this.entitiesMap.get(entity)!, this.driver);
+    const repository = new Repository<T>(entity, this.entitiesMap.get(entity)!, this.driver);
+    this.#repositories.set(entity, repository);
+    return repository;
   }
 }

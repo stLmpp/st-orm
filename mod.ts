@@ -177,7 +177,9 @@ const connection = await Connection.createConnection({ ...DB_CONFIG });
 
 const gameRepository = connection.getRepository(Game);
 
-const qb = gameRepository.createQueryBuilder('g').innerJoinAndSelect('g.modes', 'm');
+const qb = gameRepository.createQueryBuilder('g').innerJoinAndSelect(['g', Mode], 'm');
+
+console.log(await qb.getMany());
 
 /*console.log(await qb.getMany());*/
 

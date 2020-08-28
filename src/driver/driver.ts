@@ -81,7 +81,7 @@ export class Driver {
   async sync(): Promise<void> {
     let statements: [string, any[]][] = [];
     let tables = await this.informationSchemaService.getAllTables();
-    if (this.options.syncOptions?.dropSchema) {
+    if (this.options.syncOptions?.dropSchema && tables.length) {
       for (const table of tables) {
         statements.push([`DROP TABLE IF EXISTS ??.??`, [this.options.db, table.TABLE_NAME]]);
       }
@@ -103,7 +103,9 @@ export class Driver {
         statements.push(...tableStatements);
       }
     }
-    await this.confirmDb(statements);
+    if (statements.length) {
+      await this.confirmDb(statements);
+    }
   }
 
   private async checkForUnknownTables(tables: Tables[]): Promise<[string, any[]][]> {

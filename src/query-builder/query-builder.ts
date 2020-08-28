@@ -1,7 +1,6 @@
 import { isAnyObject, isArray, isFunction, isNullOrUndefined, isNumber, isString } from 'is-what';
 import { EntityMetadata } from '../entity/entity.ts';
 import { Type } from '../shared/type.ts';
-import { NamingStrategy } from '../shared/naming-strategy.ts';
 import { isType, uniqWith } from '../shared/util.ts';
 import { replaceParams } from 'sql-builder';
 import { getAlias } from './util.ts';
@@ -9,6 +8,7 @@ import { Driver } from '../driver/driver.ts';
 import { plainToClass } from '../node-libs/class-transformer.ts';
 import { ColumnMetadata } from '../entity/column.ts';
 import { RelationMetadata, RelationType } from '../entity/relation.ts';
+import { StMap } from '../shared/map.ts';
 
 export interface QueryBuilderSelect {
   selection: string;
@@ -84,15 +84,13 @@ interface QueryBuilderJoinFinalArgs {
 export class SelectQueryBuilder<T> {
   static PARAM_REGEX = /:(\w+)/g;
 
-  constructor(
-    private driver: Driver,
-    private entitiesMap: Map<any, EntityMetadata>,
-    private namingStrategy: NamingStrategy
-  ) {
-    this.#entitiesArray = [...entitiesMap.entries()];
+  constructor(driver: Driver, entitiesMap: StMap<any, EntityMetadata>) {
+    this.#driver = driver;
+    this.#entitiesMap = entitiesMap;
   }
 
-  #entitiesArray: [Type, EntityMetadata][];
+  readonly #driver: Driver;
+  readonly #entitiesMap: StMap<any, EntityMetadata>;
 
   #selectStore: QueryBuilderSelect[] = [];
   #queryHasSelect = false;
@@ -105,7 +103,7 @@ export class SelectQueryBuilder<T> {
   #orderByStore: QueryBuilderOrderBy[] = [];
 
   private _createNewQueryBuilder<U = any>(): SelectQueryBuilder<U> {
-    return new SelectQueryBuilder<U>(this.driver, this.entitiesMap, this.namingStrategy);
+    return new SelectQueryBuilder<U>(this.#driver, this.#entitiesMap);
   }
 
   distinct(distinct = true): this {
@@ -169,7 +167,7 @@ export class SelectQueryBuilder<T> {
       if (from.fromEntityMetadata?.columnsMetadata) {
         for (const [, col] of from.fromEntityMetadata.columnsMetadata) {
           if (!col.select) {
-            const name = this.namingStrategy.columnName(col.name!);
+            const name = col.dbName!;
             this.#selectStore.push({ selection: '??.??', alias: `${from.alias}_${name}`, params: [from.alias, name] });
           }
         }
@@ -186,7 +184,7 @@ export class SelectQueryBuilder<T> {
       if (from.fromEntityMetadata?.columnsMetadata) {
         for (const [, col] of from.fromEntityMetadata.columnsMetadata) {
           if (!col.select) {
-            const name = this.namingStrategy.columnName(col.name!);
+            const name = col.dbName!;
             this.#selectStore = this.#selectStore.filter(select => select.alias !== `${from.alias}_${name}`);
           }
         }
@@ -203,21 +201,19 @@ export class SelectQueryBuilder<T> {
       this.#joinStore = [];
     }
     if (isString(entity)) {
-      const entityMetadata = this.#entitiesArray.find(
-        ([, meta]) => this.namingStrategy.tableName(meta.name!) === entity
-      );
+      const entityMetadata = this.#entitiesMap.find(([, meta]) => meta.dbName! === entity);
       if (!entityMetadata?.[1]) {
         return { from: entity, alias };
       } else {
         entity = entityMetadata[0];
       }
     }
-    if (this.entitiesMap.has(entity)) {
-      const entityMeta = this.entitiesMap.get(entity)!;
-      if (!entityMeta.name) {
+    if (this.#entitiesMap.has(entity)) {
+      const entityMeta = this.#entitiesMap.get(entity)!;
+      if (!entityMeta.dbName) {
         throw new Error(`Entity ${(entity as any)?.name}, for some reason, doesn't have a name...`);
       }
-      const tableName = this.namingStrategy.tableName(entityMeta.name);
+      const tableName = entityMeta.dbName;
       this.#selectStore.push(...this._getSelectableColumns(entityMeta, alias));
       return { from: '??', alias, fromEntity: entity, fromEntityMetadata: entityMeta, params: [tableName] };
     } else if (isFunction(entity) && !isType(entity)) {
@@ -376,7 +372,7 @@ export class SelectQueryBuilder<T> {
     if (!this.#queryHasSelect) {
       for (const [, col] of entityMeta.columnsMetadata) {
         if (col.select) {
-          const name = this.namingStrategy.columnName(col.name!);
+          const name = col.dbName!;
           selection.push({
             selection: '??.??',
             alias: `${alias}_${name}`,
@@ -408,15 +404,17 @@ export class SelectQueryBuilder<T> {
       const [_condition, _conditionParams] = this._replaceParams(condition, params);
       newCondition = _condition;
       conditionParams = _conditionParams;
-    } else {
-      if (relationMeta.joinColumns?.length) {
-        for (let i = 0, len = relationMeta.joinColumns.length; i < len; i++) {
-          const joinColumn = relationMeta.joinColumns[i];
-          newCondition += ' ??.?? = ??.?? ';
-          conditionParams.push(tableAlias, joinColumn.name, alias, joinColumn.referencedColumn);
-          if (i + 1 < relationMeta.joinColumns.length) {
-            newCondition += ' AND ';
-          }
+    }
+    if (relationMeta.joinColumns?.length) {
+      if (condition) {
+        newCondition += ' AND ';
+      }
+      for (let i = 0, len = relationMeta.joinColumns.length; i < len; i++) {
+        const joinColumn = relationMeta.joinColumns[i];
+        newCondition += ' ??.?? = ??.?? ';
+        conditionParams.push(tableAlias, joinColumn.name, alias, joinColumn.referencedColumn);
+        if (i + 1 < relationMeta.joinColumns.length) {
+          newCondition += ' AND ';
         }
       }
     }
@@ -427,7 +425,7 @@ export class SelectQueryBuilder<T> {
         fromEntityMetadata: referenceMeta,
         from: '??',
         alias: '??',
-        params: [this.namingStrategy.tableName(referenceMeta!.name!), alias, ...conditionParams],
+        params: [referenceMeta!.dbName!, alias, ...conditionParams],
         condition: newCondition,
         propertyKey: relationMeta.propertyKey,
         realAlias: alias,
@@ -440,7 +438,7 @@ export class SelectQueryBuilder<T> {
 
   private _joinResolveReference(relationMeta: RelationMetadata): [Type, EntityMetadata] {
     const reference = relationMeta.referenceType;
-    const referenceMeta = this.entitiesMap.get(reference);
+    const referenceMeta = this.#entitiesMap.get(reference);
     if (!reference || !referenceMeta) {
       throw new Error(`Could not find reference ${relationMeta.reference}`);
     }
@@ -463,10 +461,24 @@ export class SelectQueryBuilder<T> {
       this.#fromStore.find(from => from.alias === tableAlias)?.fromEntityMetadata ??
       this.#joinStore.find(j => j.realAlias === tableAlias)?.fromEntityMetadata;
     const relationMeta = targetMeta?.relationsMetadata.get(relation);
-    if (!relationMeta) {
+    if (!relationMeta || !targetMeta) {
       throw new Error(`Couldn't find relation "${join}"`);
     }
     const [reference, referenceMeta] = this._joinResolveReference(relationMeta);
+    /*if (relationMeta.type === RelationType.manyToMany) {
+      const joinMeta = this.#entitiesMap.get(relationMeta.joinTable!.type)!;
+      const [manySql] = this._join(
+        type,
+        `${tableAlias}.${relationMeta.joinTable!.name!}`,
+        `${tableAlias}_${relationMeta.joinTable!.name!}`
+      );
+      this.#joinStore.push(manySql);
+      tableAlias = `${tableAlias}_${relationMeta.joinTable!.name!}`;
+      relationMeta = joinMeta.relationsMetadata.get(this.namingStrategy.tableName(referenceMeta.name!))!;
+      const [_ref, _refMeta] = this._joinResolveReference(relationMeta);
+      reference = _ref;
+      referenceMeta = _refMeta;
+    }*/
     return this._joinFinal({
       alias,
       condition,
@@ -508,7 +520,7 @@ export class SelectQueryBuilder<T> {
       throw new Error(`Found two relations between alias "${tableAlias}" and "${joinType.name}"`);
     }
     const [, relationMeta] = relationMetaMap.first()!;
-    const referenceMeta = this.entitiesMap.get(relationMeta?.referenceType);
+    const referenceMeta = this.#entitiesMap.get(relationMeta?.referenceType);
     const reference = relationMeta?.referenceType;
     if (!relationMeta || !referenceMeta || !reference) {
       throw new Error(`Couldn't find any relation from type "${joinType.name}"`);
@@ -653,11 +665,11 @@ export class SelectQueryBuilder<T> {
   }
 
   async getRawMany<U = any>(): Promise<U[]> {
-    return await this.driver.query(...this.getQueryAndParameters());
+    return await this.#driver.query(...this.getQueryAndParameters());
   }
 
   async getRawOne<U = any>(): Promise<U> {
-    const result = await this.driver.query(...this.getQueryAndParameters());
+    const result = await this.#driver.query(...this.getQueryAndParameters());
     return result?.[0];
   }
 
@@ -692,38 +704,41 @@ export class SelectQueryBuilder<T> {
 
   private _getJoinRecusive(
     alias: string,
-    relationsMap: Map<string, RelationMetadata>,
+    relationsMap: StMap<string, RelationMetadata>,
     rawData: any[],
     rawEntities: any[]
   ): any[] {
     for (const [relationKey, relation] of relationsMap) {
-      const join = this.#joinStore.find(j => j.propertyKey === relationKey && alias === j.parentAlias);
-      if (join) {
-        let joinRawEntities: any[] = this._getRawUnique(rawData, join.realAlias!);
-        const joinTableMeta = this.entitiesMap.get(relation.referenceType);
-        if (joinTableMeta) {
-          joinRawEntities = this._getJoinRecusive(
-            join.realAlias!,
-            joinTableMeta.relationsMetadata,
-            rawData,
-            joinRawEntities
-          );
-        }
-        const joinEntities: any[] = plainToClass(join.fromEntity, joinRawEntities, {});
-        rawEntities = rawEntities.map(rawEntity => {
-          const joinRelationEntities = joinEntities.filter(joinEntity => {
-            return join.relationMetadata!.joinColumns!.every(
-              joinColumn => rawEntity[joinColumn.referencedColumn!] === joinEntity[joinColumn.name!]
+      if (relation.type === RelationType.manyToMany) {
+      } else {
+        const join = this.#joinStore.find(j => j.propertyKey === relationKey && alias === j.parentAlias);
+        if (join) {
+          let joinRawEntities: any[] = this._getRawUnique(rawData, join.realAlias!);
+          const joinTableMeta = this.#entitiesMap.get(relation.referenceType);
+          if (joinTableMeta) {
+            joinRawEntities = this._getJoinRecusive(
+              join.realAlias!,
+              joinTableMeta.relationsMetadata,
+              rawData,
+              joinRawEntities
             );
+          }
+          const joinEntities: any[] = plainToClass(join.fromEntity, joinRawEntities);
+          rawEntities = rawEntities.map(rawEntity => {
+            const joinRelationEntities = joinEntities.filter(joinEntity => {
+              return join.relationMetadata!.joinColumns!.every(
+                joinColumn => rawEntity[joinColumn.referencedColumn!] === joinEntity[joinColumn.name!]
+              );
+            });
+            return {
+              ...rawEntity,
+              [join.propertyKey!]:
+                join.relationMetadata!.type === RelationType.oneToMany
+                  ? joinRelationEntities
+                  : joinRelationEntities?.[0] ?? null,
+            };
           });
-          return {
-            ...rawEntity,
-            [join.propertyKey!]:
-              join.relationMetadata!.type === RelationType.oneToMany
-                ? joinRelationEntities
-                : joinRelationEntities?.[0] ?? null,
-          };
-        });
+        }
       }
     }
     return rawEntities;

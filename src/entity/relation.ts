@@ -2,8 +2,10 @@ import { Type } from '../shared/type.ts';
 import { JoinColumnOptions } from './join-column.ts';
 import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { entityStore } from '../store/entity-store.ts';
-import { isAnyObject, isFunction, isString } from 'is-what';
-import { JoinTableOptions } from './join-table.ts';
+import { isAnyObject, isArray, isFunction, isNumber, isString } from 'is-what';
+import { JoinTableMetadata } from './join-table.ts';
+import { TableConstraints } from '../information-schema/table-constraints.entity.ts';
+import { orderBy } from '../shared/order-by.ts';
 
 export enum RelationDefinition {
   restrict = 'reference',
@@ -16,7 +18,7 @@ export enum RelationDefinition {
 export enum RelationCascade {
   insert,
   update,
-  remove,
+  delete,
 }
 
 export interface RelationOptions {
@@ -45,8 +47,9 @@ export interface RelationMetadata extends RelationOptions {
   referenceType?: Type;
   inverse?: (type: any) => any;
   joinColumns?: JoinColumnOptions[];
-  joinTables?: JoinTableOptions[];
+  joinTable?: JoinTableMetadata;
   owner?: boolean;
+  cascadeOptions: Record<RelationCascade, boolean>;
 }
 
 export function createRelationDecorator<T, K extends keyof T>(
@@ -73,12 +76,21 @@ export function createRelationDecorator<T, K extends keyof T>(
         );
       }
     }
+    const cascadeOptions = Object.values(RelationCascade)
+      .filter(isNumber)
+      .reduce((acc, item) => ({ ...acc, [item]: options?.cascade === true }), {} as Record<RelationCascade, boolean>);
+    if (options?.cascade && isArray(options?.cascade)) {
+      for (const cascade of options.cascade) {
+        cascadeOptions[cascade] = true;
+      }
+    }
     const metadata: RelationMetadata = {
       propertyKey: propertyKey.toString(),
       type: relationType,
       reference: isString(type) ? type : type(undefined),
       inverse: isString(inverse) ? value => value[inverse] : inverse,
       referenceFn: isFunction(type) ? type : undefined,
+      cascadeOptions,
     };
     entityStore.upsertRelation(target.constructor, propertyKey.toString(), metadata);
   };
@@ -96,8 +108,8 @@ export function resolveRelation(
   if (relationMetadata.joinColumns?.length) {
     let foreignKeyStatement = 'FOREIGN KEY(';
     const fkParams = [];
-    let referencesStatement = 'REFERENCES ??(';
-    const refParams: any[] = [referencedTableName];
+    let referencesStatement = 'REFERENCES ??.??(';
+    const refParams: any[] = [databaseName, referencedTableName];
     for (const joinColumn of relationMetadata.joinColumns) {
       foreignKeyStatement += '??,';
       fkParams.push(joinColumn.name);
@@ -111,5 +123,27 @@ export function resolveRelation(
     statement += referencesStatement;
     params.push(...refParams);
   }
+  if (relationMetadata.onDelete || relationMetadata.cascadeOptions[RelationCascade.delete]) {
+    statement += ` ON DELETE ${relationMetadata.onDelete}`;
+  }
+  if (relationMetadata.onUpdate) {
+    statement += ` ON UPDATE ${relationMetadata.onUpdate}`;
+  }
   return [statement, params];
+}
+
+export function relationHasChanged(oldRelation: TableConstraints, newRelation: RelationMetadata): boolean {
+  let oldJoinColumns = oldRelation.getJoinColumns();
+  let newJoinColumns = newRelation.joinColumns ?? [];
+  const joinColumnsHasChanged = (): boolean => {
+    oldJoinColumns = orderBy(oldJoinColumns, ['name', 'referencedColumn']);
+    newJoinColumns = orderBy(newJoinColumns, ['name', 'referencedColumn']);
+    return oldJoinColumns.some((oldJoinColumn, index) => {
+      const newJoinColumn = newJoinColumns[index];
+      return (
+        oldJoinColumn.name !== newJoinColumn.name || oldJoinColumn.referencedColumn !== newJoinColumn.referencedColumn
+      );
+    });
+  };
+  return oldJoinColumns.length !== newJoinColumns.length || joinColumnsHasChanged();
 }

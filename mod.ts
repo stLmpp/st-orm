@@ -4,13 +4,15 @@ import './src/injector/reflect.ts';
 import { Application } from 'oak';
 import { Connection } from './src/connection/connection.ts';
 import { DB_CONFIG } from './test/db.config.ts';
-import { Column, PrimaryGeneratedColumn } from './src/entity/column.ts';
+import { Column, PrimaryColumn, PrimaryGeneratedColumn } from './src/entity/column.ts';
 import { Entity } from './src/entity/entity.ts';
 import { Index, Indexes, UniqueIndex } from './src/entity/indexes.ts';
 import { OneToOne } from './src/entity/one-to-one.ts';
 import { JoinColumn } from './src/entity/join-column.ts';
 import { ManyToOne } from './src/entity/many-to-one.ts';
 import { OneToMany } from './src/entity/one-to-many.ts';
+import { ManyToMany } from './src/entity/many-to-many.ts';
+import { JoinTable } from './src/entity/join-table.ts';
 
 enum Teste {
   teste = 'testeSAAS',
@@ -36,7 +38,7 @@ export class Perfil {
   nome!: string;
 
   @Column({ length: 1000 })
-  @Index({ fulltext: true })
+  @Index({ fulltext: true, comment: 'BLABLABLA' })
   fullName!: string;
 
   @Column()
@@ -116,10 +118,68 @@ export class SubGrupo {
   @ManyToOne(() => Grupo, 'subGrupos')
   @JoinColumn()
   grupo!: Grupo;
+
+  @ManyToOne(() => Perfil)
+  @JoinColumn()
+  perfil!: Perfil;
+}
+
+@Entity()
+export class Game {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @Column()
+  nome!: string;
+
+  @ManyToMany(() => Mode)
+  @JoinTable()
+  modes!: Mode[];
+}
+
+@Entity()
+export class Mode {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @Column()
+  nome!: string;
+}
+
+@Entity()
+export class Pai {
+  @PrimaryColumn()
+  id!: number;
+
+  @PrimaryColumn()
+  id2!: number;
+
+  @PrimaryColumn()
+  id3!: number;
+}
+
+@Entity()
+export class Filho {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @ManyToOne(() => Pai)
+  @JoinColumn([
+    { name: 'idPai', referencedColumn: 'id' },
+    { name: 'idPai2', referencedColumn: 'id2' },
+    { name: 'idPai3', referencedColumn: 'id3' },
+  ])
+  pai!: Pai;
 }
 
 const app = new Application();
-const connection = await Connection.createConnection(DB_CONFIG);
+const connection = await Connection.createConnection({ ...DB_CONFIG });
+
+const gameRepository = connection.getRepository(Game);
+
+const qb = gameRepository.createQueryBuilder('g').innerJoinAndSelect('g.modes', 'm');
+
+/*console.log(await qb.getMany());*/
 
 /*const qb = connection.driver.informationSchemaService.tableRepository
   .createQueryBuilder('t')

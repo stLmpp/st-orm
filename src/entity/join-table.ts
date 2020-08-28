@@ -1,47 +1,33 @@
 import { JoinColumnOptions } from './join-column.ts';
 import { isArray } from 'is-what';
 import { entityStore } from '../store/entity-store.ts';
+import { Type } from '../shared/type.ts';
 
 export interface JoinTableOptions {
   name?: string;
-  joinColumns?: JoinColumnOptions[];
-  inverseJoinColumns?: JoinColumnOptions[];
+  joinColumns?: JoinColumnOptions[] | JoinColumnOptions;
+  inverseJoinColumns?: JoinColumnOptions[] | JoinColumnOptions;
 }
 
-export interface JoinTableOptionsSingleColumn extends JoinTableOptions {
-  joinColumn?: JoinColumnOptions;
-  inverseJoinColumn?: JoinColumnOptions;
+export interface JoinTableMetadata extends JoinTableOptions {
+  joinColumns: JoinColumnOptions[];
+  inverseJoinColumns: JoinColumnOptions[];
+  type?: Type;
 }
 
-export function JoinTable(options?: JoinTableOptionsSingleColumn | JoinTableOptionsSingleColumn[]): PropertyDecorator {
-  let newOptions: JoinTableOptions[];
-  if (isArray(options)) {
-    newOptions = (options ?? []).map(option => {
-      if (option.joinColumn) {
-        option.joinColumns = [...(option.joinColumns ?? []), option.joinColumn];
-      }
-      if (option.inverseJoinColumn) {
-        option.inverseJoinColumns = [...(option.inverseJoinColumns ?? []), option.inverseJoinColumn];
-      }
-      return {
-        joinColumns: option.joinColumns,
-        inverseJoinColumns: option.inverseJoinColumns,
-        name: option.name,
-      };
-    });
-  } else {
-    options = { ...options };
-    if (options.joinColumn) {
-      options.joinColumns = [...(options.joinColumns ?? []), options.joinColumn];
-    }
-    if (options.inverseJoinColumn) {
-      options.inverseJoinColumns = [...(options.inverseJoinColumns ?? []), options.inverseJoinColumn];
-    }
-    newOptions = [options];
+export function JoinTable(options: JoinTableOptions = {}): PropertyDecorator {
+  const metadata: JoinTableMetadata = { name: options?.name, joinColumns: [{}], inverseJoinColumns: [{}] };
+  if (options?.joinColumns) {
+    metadata.joinColumns = isArray(options.joinColumns) ? options.joinColumns : [options.joinColumns];
+  }
+  if (options?.inverseJoinColumns) {
+    metadata.inverseJoinColumns = isArray(options.inverseJoinColumns)
+      ? options.inverseJoinColumns
+      : [options.inverseJoinColumns];
   }
   return (target, propertyKey) => {
     entityStore.upsertRelation(target.constructor, propertyKey.toString(), {
-      joinTables: newOptions,
+      joinTable: metadata,
       propertyKey: propertyKey.toString(),
     });
   };

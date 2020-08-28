@@ -25,12 +25,13 @@ export interface ColumnOptions {
   unsigned?: boolean;
   enumValue?: any;
   comment?: string;
-  collate?: string;
+  collation?: string;
 }
 
 export interface ColumnMetadata extends ColumnOptions {
   typeTs?: any;
   indexes?: IndexMetadata[];
+  dbName?: string;
 }
 
 export enum ColumnGenerated {
@@ -141,14 +142,13 @@ export enum ColumnType {
 export type ColumnResolver = (columnMetadata: ColumnMetadata) => [string, any[]];
 
 function defaultColumnResolver(columnMetadata: ColumnMetadata): [string, any[]] {
-  const { name, generated, primary, nullable, unsigned, zerofill, defaultRaw, collate, comment } = columnMetadata;
+  const { name, generated, nullable, unsigned, zerofill, defaultRaw, collation, comment } = columnMetadata;
   const params: any[] = [name];
   const [typeStatement, typeParams] = getTypeAndLength(columnMetadata);
   params.push(...typeParams);
   const isNull = nullable ? ' NULL' : ' NOT NULL';
   const increment = generated && generated === ColumnGenerated.increment ? ' AUTO_INCREMENT' : '';
-  const primaryKey = primary ? ' PRIMARY KEY' : '';
-  let column = `?? ${typeStatement}${isNull}${increment}${primaryKey}`;
+  let column = `?? ${typeStatement}${isNull}${increment}`;
   if (defaultRaw) {
     column += ` DEFAULT ${defaultRaw}`;
   }
@@ -158,8 +158,8 @@ function defaultColumnResolver(columnMetadata: ColumnMetadata): [string, any[]] 
   if (zerofill) {
     column += ` ZEROFILL`;
   }
-  if (collate) {
-    column += ` COLLATE ${collate}`;
+  if (collation) {
+    column += ` COLLATE ${collation}`;
   }
   if (comment) {
     column += ` COMMENT ?`;
@@ -397,7 +397,7 @@ export function columnHasChanged(oldColumn: Columns, newColumn: ColumnMetadata):
     typeDb.length !== newColumn.length ||
     typeDb.precision !== newColumn.precision ||
     typeDb.scale !== newColumn.scale ||
-    oldColumn.COLLATION_NAME != newColumn.collate ||
+    oldColumn.COLLATION_NAME != newColumn.collation ||
     (columnTypeLower.includes('unsigned') && !newColumn.unsigned) ||
     (columnTypeLower.includes('zerofill') && !newColumn.zerofill) ||
     (!isNullOrUndefined(defaultValue) && defaultValue !== newDefaultValue)
@@ -479,9 +479,9 @@ function logColumnChanges(
     },
     {
       prop: 'collate',
-      changed: oldColumn.COLLATION_NAME != newColumn.collate,
+      changed: oldColumn.COLLATION_NAME != newColumn.collation,
       dbValue: oldColumn.COLLATION_NAME,
-      newValue: newColumn.collate,
+      newValue: newColumn.collation,
     },
     {
       prop: 'unsigned',

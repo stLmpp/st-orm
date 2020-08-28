@@ -1,6 +1,6 @@
 import { Injectable } from '../injector/injectable.ts';
 import { injector } from '../injector/injector.ts';
-import { camelCase } from 'case';
+import { camelCase, snakeCase } from 'case';
 import { IndexMetadata } from '../entity/indexes.ts';
 import { sha1 } from './util.ts';
 import { RelationMetadata } from '../entity/relation.ts';
@@ -8,7 +8,7 @@ import { RelationMetadata } from '../entity/relation.ts';
 @Injectable()
 export class DefaultNamingStrategy implements NamingStrategy {
   tableName(entityName: string): string {
-    return camelCase(entityName);
+    return snakeCase(entityName);
   }
   columnName(name: string): string {
     return camelCase(name);
@@ -20,6 +20,9 @@ export class DefaultNamingStrategy implements NamingStrategy {
   }
   joinColumnName(name: string, referencedColumn: string): string {
     return camelCase(`${referencedColumn}_${name}`);
+  }
+  joinTableName(ownerTableName: string, tableName: string): string {
+    return camelCase(`${ownerTableName}_${tableName}`);
   }
   foreignKeyName({ columns, options, referencedColumns, referencedTableName, tableName }: ForeignKeyNameArgs): string {
     const optionsString = options ? JSON.stringify(options) : '';
@@ -46,5 +49,6 @@ export interface NamingStrategy {
   columnName(name: string): string;
   indexName(tableName: string, columns: string[], options?: IndexMetadata): string;
   joinColumnName(name: string, referencedColumn: string): string;
+  joinTableName(ownerTableName: string, tableName: string, ownerColumns: string[], columns: string[]): string;
   foreignKeyName(args: ForeignKeyNameArgs): string;
 }

@@ -4,15 +4,20 @@ export class StMap<S, T> extends Map<S, T> {
   static defaultMerger = (a: any, b: any): any => ({ ...a, ...b });
 
   constructor(
-    private _defaultValueFactory: () => T = () => ({} as any),
-    private _merger: (oldEntry: T, newEntry: T | Partial<T>) => T = StMap.defaultMerger
+    defaultValueFactory: () => T = () => ({} as any), // TODO REFACTOR
+    merger: (oldEntry: T, newEntry: T | Partial<T>) => T = StMap.defaultMerger
   ) {
     super();
+    this.#defaultValueFactory = defaultValueFactory;
+    this.#merger = merger;
   }
+
+  readonly #defaultValueFactory: () => T;
+  readonly #merger: (oldEntry: T, newEntry: T | Partial<T>) => T;
 
   getOrCreate(key: S): T {
     if (!this.has(key)) {
-      this.set(key, this._defaultValueFactory());
+      this.set(key, this.#defaultValueFactory());
       return this.get(key)!;
     } else {
       return this.get(key)!;
@@ -26,8 +31,8 @@ export class StMap<S, T> extends Map<S, T> {
     if (!this.has(key)) {
       return this;
     }
-    const callback = isFunction(valueOrCallback) ? valueOrCallback : (entry: T) => this._merger(entry, valueOrCallback);
-    const entry = this.getOrCreate(key);
+    const callback = isFunction(valueOrCallback) ? valueOrCallback : (entry: T) => this.#merger(entry, valueOrCallback);
+    const entry = this.get(key)!;
     const newEntry = callback(entry);
     this.set(key, newEntry);
     return this;
@@ -41,7 +46,7 @@ export class StMap<S, T> extends Map<S, T> {
     if (!this.has(key)) {
       const callback = isFunction(valueOrPartialOrCallback)
         ? valueOrPartialOrCallback
-        : (entry: T) => this._merger(entry, valueOrPartialOrCallback);
+        : (entry: T) => this.#merger(entry, valueOrPartialOrCallback);
       const entry = this.getOrCreate(key);
       const newEntry = callback(entry);
       this.set(key, newEntry);
@@ -52,7 +57,7 @@ export class StMap<S, T> extends Map<S, T> {
   }
 
   filter(callback: (key: S, entity: T) => boolean): StMap<S, T> {
-    const stMap = new StMap<S, T>(this._defaultValueFactory, this._merger);
+    const stMap = new StMap<S, T>(this.#defaultValueFactory, this.#merger);
     for (const [key, entity] of this) {
       if (callback(key, entity)) {
         stMap.set(key, entity);
@@ -62,7 +67,7 @@ export class StMap<S, T> extends Map<S, T> {
   }
 
   map(callback: (key: S, entity: T) => T): StMap<S, T> {
-    const stMap = new StMap<S, T>(this._defaultValueFactory, this._merger);
+    const stMap = new StMap<S, T>(this.#defaultValueFactory, this.#merger);
     for (const [key, entity] of this) {
       stMap.set(key, callback(key, entity));
     }

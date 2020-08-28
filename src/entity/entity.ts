@@ -4,6 +4,7 @@ import { isString, isAnyObject } from 'is-what';
 import { IndexMetadata } from './indexes.ts';
 import { RelationMetadata } from './relation.ts';
 import { StMap } from '../shared/map.ts';
+import { FormulaFn } from './formula.ts';
 
 export interface EntityOptions {
   name?: string;
@@ -15,8 +16,11 @@ export interface EntityOptions {
 export interface EntityMetadata extends EntityOptions {
   columnsMetadata: StMap<string, ColumnMetadata>;
   relationsMetadata: StMap<string, RelationMetadata>;
+  formulas: StMap<string, FormulaFn>;
   relationProperties?: Record<string, string>;
   indexes?: IndexMetadata[];
+  primaries?: string[];
+  dbName?: string;
 }
 
 export function Entity(options?: EntityOptions): ClassDecorator;

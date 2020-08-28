@@ -2,6 +2,7 @@ import { Entity } from '../entity/entity.ts';
 import { Column } from '../entity/column.ts';
 import { Columns } from './columns.entity.ts';
 import { OneToMany } from '../entity/one-to-many.ts';
+import { TableConstraints } from './table-constraints.entity.ts';
 
 export enum TableRowFormat {
   fixed = 'Fixed',
@@ -44,4 +45,11 @@ export class Tables {
 
   @OneToMany(() => Columns, 'table')
   columns!: Columns[];
+
+  @OneToMany(() => TableConstraints, 'table')
+  constraints!: TableConstraints[];
+
+  getPrimaries(): string[] {
+    return (this.columns ?? []).filter(col => col.COLUMN_KEY === 'PRI').map(col => col.COLUMN_NAME);
+  }
 }

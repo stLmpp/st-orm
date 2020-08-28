@@ -1,7 +1,8 @@
 import { ReflectMetadata } from '../store/meta.ts';
 import { createHash } from 'hash';
 import { Type } from './type.ts';
-import { isFunction, isAnyObject } from 'is-what';
+import { isAnyObject, isFunction, isString } from 'is-what';
+import { StMap } from './map.ts';
 
 export function applyDecorators(...decorators: Array<PropertyDecorator | MethodDecorator>): any {
   return (target: any, propertyKey: string | symbol, arg2: any) => {
@@ -51,4 +52,19 @@ export function uniqWith<T>(array: T[], comparator: (valueA: T, valueB: T) => bo
     }
   }
   return array.filter((_, index) => !set.has(index));
+}
+
+export function groupBy<T, K extends keyof T>(array: T[], key: K): StMap<T[K], T[]> {
+  return array.reduce(
+    (acc, item) => {
+      return acc.upsert(item[key], items => {
+        return [...(items ?? []), item];
+      });
+    },
+    new StMap<T[K], T[]>(() => [])
+  );
+}
+
+export function random(max = 0, min = 0): number {
+  return Math.random() * (max - min) + min;
 }

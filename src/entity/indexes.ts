@@ -18,6 +18,9 @@ export interface IndexOptions {
 
 export interface IndexMetadata extends IndexOptions {
   columns?: string[];
+  dbName?: string;
+  columnName?: string;
+  tableName?: string;
 }
 
 export function Index(options: IndexOptions = {}): PropertyDecorator {
@@ -44,44 +47,38 @@ export function Indexes(columns: string[] | Record<string, IndexOptions>): Class
   };
 }
 
-export function resolveIndex(
-  databaseName: string,
-  tableName: string,
-  name: string,
-  indexOptions: IndexMetadata,
-  column?: string
-): [string, any[]] {
+export function resolveIndex(databaseName: string, tableName: string, indexMetadata: IndexMetadata): [string, any[]] {
   const params: any[] = [databaseName, tableName];
   let idxType = '';
-  if (indexOptions.unique) {
+  if (indexMetadata.unique) {
     idxType = 'UNIQUE';
-  } else if (indexOptions.fulltext) {
+  } else if (indexMetadata.fulltext) {
     idxType = 'FULLTEXT';
-  } else if (indexOptions.spatial) {
+  } else if (indexMetadata.spatial) {
     idxType = 'SPATIAL';
   }
   let columns = '';
-  if (indexOptions.columns?.length) {
-    columns = indexOptions.columns.map(() => '??').join(',');
-    params.push(...indexOptions.columns);
-  } else if (column) {
+  if (indexMetadata.columns?.length) {
+    columns = indexMetadata.columns.map(() => '??').join(',');
+    params.push(...indexMetadata.columns);
+  } else if (indexMetadata.columnName) {
     columns = '??';
-    params.push(column);
+    params.push(indexMetadata.columnName);
   }
-  let index = `CREATE ${idxType} INDEX ${name} ON ??.??(${columns})`;
-  if (indexOptions.comment) {
+  let index = `CREATE ${idxType} INDEX ${indexMetadata.dbName} ON ??.??(${columns})`;
+  if (indexMetadata.comment) {
     index += ` COMMENT ?`;
-    params.push(indexOptions.comment);
+    params.push(indexMetadata.comment);
   }
-  if (indexOptions.visibility) {
-    index += ` ${indexOptions.visibility}`;
+  if (indexMetadata.visibility) {
+    index += ` ${indexMetadata.visibility}`;
   }
   return [index, params];
 }
 
 export function indexHasChanged(oldIndex: Statistics, newIndex: IndexMetadata): boolean {
   return (
-    (oldIndex.INDEX_COMMENT !== '' && oldIndex.INDEX_COMMENT !== newIndex.comment) ||
+    (oldIndex.INDEX_COMMENT || undefined) !== newIndex.comment ||
     !oldIndex.NON_UNIQUE !== !!newIndex.unique ||
     (oldIndex.INDEX_TYPE === 'FULLTEXT' && !newIndex.fulltext) ||
     (!isNullOrUndefined(oldIndex.IS_VISIBLE) &&

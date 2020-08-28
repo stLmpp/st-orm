@@ -5,12 +5,16 @@ import { entityStore } from '../store/entity-store.ts';
 import { Type } from '../shared/type.ts';
 import { Repository } from '../repository/repository.ts';
 import { EntityMetadata } from '../entity/entity.ts';
-import { informationSchemaNamingStrategy } from '../information-schema/information-schema-naming-strategy.ts';
+import { informationSchemaNamingStrategy } from '../information-schema/information-schema.naming-strategy.ts';
+import { StMap } from '../shared/map.ts';
 
 export interface SyncOptions {
   dropUnknownTables?: boolean;
-  dropUnkownColumns?: boolean;
+  dropUnknownColumns?: boolean;
+  dropUnknownIndices?: boolean;
+  dropUnknownRelations?: boolean;
   askBeforeSync?: boolean;
+  dropSchema?: boolean;
 }
 
 export interface ConnectionConfig extends ClientConfig {
@@ -18,16 +22,32 @@ export interface ConnectionConfig extends ClientConfig {
   namingStrategy?: NamingStrategy;
   sync?: boolean;
   syncOptions?: SyncOptions;
+  charset?: string;
+  collation?: string;
+}
+
+export interface ConnectionConfigInternal extends ConnectionConfig {
+  version: string;
+  isGreaterThan5: boolean;
 }
 
 export class Connection {
   static async createConnection(config: ConnectionConfig): Promise<Connection> {
+    const client = await new Client().connect(config);
     config.name = config.name ?? 'default';
     config.namingStrategy = config.namingStrategy ?? defaultNamingStrategy;
-    entityStore.updateDefaults(config.name, config.namingStrategy);
-    const entitiesMap = entityStore.getEntitiesConnection(config.name);
+    const version = (await client.query('select version() as version'))[0].version;
+    const isGreaterThan5 = +version.split('.').shift() > 5;
+    const newConfig: ConnectionConfigInternal = { ...config, version, isGreaterThan5 };
+    if (!newConfig.charset) {
+      newConfig.charset = isGreaterThan5 ? 'utf8mb4' : 'utf8';
+    }
+    if (!newConfig.collation) {
+      newConfig.collation = isGreaterThan5 ? 'utf8mb4_0900_ai_ci' : 'utf8_unicode_ci';
+    }
+    entityStore.updateDefaults(newConfig, newConfig.namingStrategy!);
+    const entitiesMap = entityStore.getEntitiesConnection(newConfig.name);
     let informationSchemaConnection: Connection;
-    let version: string;
     if (config.db !== 'information_schema') {
       informationSchemaConnection = await Connection.createConnection({
         ...config,
@@ -37,15 +57,11 @@ export class Connection {
         db: 'information_schema',
       });
     }
-    const driver = new Driver(config, config.namingStrategy, entitiesMap, informationSchemaConnection!);
-    const client = await driver.connect();
-    if (config.sync) {
+    const driver = new Driver(client, newConfig, entitiesMap, informationSchemaConnection!);
+    if (newConfig.sync) {
       await driver.sync();
     }
-    if (config.db === 'information_schema') {
-      version = (await client.query('select version()'))[0]['version()'];
-    }
-    return new Connection(config.name, driver, client, config, entitiesMap, version!);
+    return new Connection(config.name, driver, newConfig, entitiesMap);
   }
 
   static async createConnections(configs: ConnectionConfig[]): Promise<Record<string, Connection>> {
@@ -59,10 +75,8 @@ export class Connection {
   constructor(
     private name: string,
     public driver: Driver,
-    public client: Client,
-    private options: ConnectionConfig,
-    private entitiesMap: Map<any, EntityMetadata>,
-    public version?: string
+    private options: ConnectionConfigInternal,
+    private entitiesMap: StMap<any, EntityMetadata>
   ) {}
 
   async sync(): Promise<void> {

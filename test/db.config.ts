@@ -9,7 +9,10 @@ export const DB_CONFIG: ConnectionConfig = {
   sync: true,
   syncOptions: {
     dropUnknownTables: true,
-    dropUnkownColumns: true,
+    dropUnknownColumns: true,
+    dropUnknownIndices: true,
+    dropUnknownRelations: true,
     askBeforeSync: true,
+    dropSchema: false,
   },
 };

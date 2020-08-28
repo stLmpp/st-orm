@@ -2,7 +2,7 @@ import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { isArray, isDate, isNullOrUndefined, isNumber, isString } from 'is-what';
 import { entityStore } from '../store/entity-store.ts';
 import { applyDecorators, isArrayEqual } from '../shared/util.ts';
-import { IndexMetadata } from './indexes.ts';
+import { IndexMetadata } from './indices.ts';
 import { Columns } from '../information-schema/columns.entity.ts';
 import { format } from 'datetime';
 import { StMap } from '../shared/map.ts';
@@ -30,7 +30,7 @@ export interface ColumnOptions {
 
 export interface ColumnMetadata extends ColumnOptions {
   typeTs?: any;
-  indexes?: IndexMetadata[];
+  indices?: IndexMetadata[];
   dbName?: string;
 }
 

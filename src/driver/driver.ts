@@ -3,7 +3,7 @@ import { NamingStrategy } from '../shared/naming-strategy.ts';
 import { EntityMetadata } from '../entity/entity.ts';
 import { Connection, ConnectionConfigInternal } from '../connection/connection.ts';
 import { columnHasChanged, ColumnMetadata, resolveColumn } from '../entity/column.ts';
-import { indexHasChanged, IndexMetadata, resolveIndex } from '../entity/indexes.ts';
+import { indexHasChanged, IndexMetadata, resolveIndex } from '../entity/indices.ts';
 import { SelectQueryBuilder } from '../query-builder/query-builder.ts';
 import { InformationSchemaService } from '../information-schema/information-schema.service.ts';
 import { replaceParams } from 'sql-builder';
@@ -194,59 +194,59 @@ export class Driver {
         }
       }
     }
-    const indexStatements = await this.getIndexesStatements(entityMetadata, tableDb);
+    const indexStatements = await this.getIndicesStatements(entityMetadata, tableDb);
     statements.push(...indexStatements);
     const relationStatements = await this.getRelationStatements(name, relationsMetadata, tableDb?.constraints ?? []);
     statements.push(...relationStatements);
     return statements;
   }
 
-  private async getIndexesStatements(entityMetadata: EntityMetadata, tableDb?: Tables): Promise<[string, any[]][]> {
+  private async getIndicesStatements(entityMetadata: EntityMetadata, tableDb?: Tables): Promise<[string, any[]][]> {
     const statements: [string, any[]][] = [];
-    let tableIndexes = entityMetadata.indexes ?? [];
-    let indexes = entityMetadata.columnsMetadata.reduce(
+    let tableIndices = entityMetadata.indices ?? [];
+    let indices = entityMetadata.columnsMetadata.reduce(
       (acc: IndexMetadata[], [, columnMetadata]) =>
-        columnMetadata.indexes?.length ? [...acc, ...columnMetadata.indexes] : acc,
+        columnMetadata.indices?.length ? [...acc, ...columnMetadata.indices] : acc,
       []
     );
-    let indexesDb = (tableDb?.columns ?? []).reduce(
-      (acc: Statistics[], item) => (item.indexes?.length ? [...acc, ...item.indexes] : acc),
+    let indicesDb = (tableDb?.columns ?? []).reduce(
+      (acc: Statistics[], item) => (item.indices?.length ? [...acc, ...item.indices] : acc),
       []
     );
-    const indexesDbGrouped = groupBy(indexesDb, 'INDEX_NAME');
-    for (const [indexName, indexesGroup] of indexesDbGrouped) {
-      if (indexesGroup.length > 1) {
-        const indexExists = tableIndexes.findIndex(index =>
-          index.columns!.some(col => indexesGroup.some(idxGroup => idxGroup.COLUMN_NAME === col))
+    const indicesDbGrouped = groupBy(indicesDb, 'INDEX_NAME');
+    for (const [indexName, indicesGroup] of indicesDbGrouped) {
+      if (indicesGroup.length > 1) {
+        const indexExists = tableIndices.findIndex(index =>
+          index.columns!.some(col => indicesGroup.some(idxGroup => idxGroup.COLUMN_NAME === col))
         );
         if (indexExists > -1) {
-          const columnDb = indexesGroup.map(({ COLUMN_NAME }) => COLUMN_NAME).sort();
-          const newColumns = [...tableIndexes[indexExists].columns!].sort();
+          const columnDb = indicesGroup.map(({ COLUMN_NAME }) => COLUMN_NAME).sort();
+          const newColumns = [...tableIndices[indexExists].columns!].sort();
           if (!isArrayEqual(columnDb, newColumns)) {
             statements.push(['DROP INDEX ?? ON ??.??', [indexName, this.options.db, entityMetadata.dbName]]);
           } else {
-            tableIndexes = tableIndexes.filter((_, index) => index !== indexExists);
+            tableIndices = tableIndices.filter((_, index) => index !== indexExists);
           }
-          indexesDb = indexesDb.filter(idx => idx.INDEX_NAME !== indexName);
+          indicesDb = indicesDb.filter(idx => idx.INDEX_NAME !== indexName);
         }
       } else {
-        const indexDb = indexesGroup[0];
-        const newIndex = indexes.findIndex(index => index.columnName === indexDb.COLUMN_NAME);
+        const indexDb = indicesGroup[0];
+        const newIndex = indices.findIndex(index => index.columnName === indexDb.COLUMN_NAME);
         if (newIndex > -1) {
-          if (indexHasChanged(indexDb, indexes[newIndex])) {
+          if (indexHasChanged(indexDb, indices[newIndex])) {
             statements.push(['DROP INDEX ?? ON ??.??', [indexDb.INDEX_NAME, this.options.db, entityMetadata.dbName]]);
           } else {
-            indexes = indexes.filter((_, index) => index !== newIndex);
+            indices = indices.filter((_, index) => index !== newIndex);
           }
-          indexesDb = indexesDb.filter(idx => idx.INDEX_NAME !== indexName);
+          indicesDb = indicesDb.filter(idx => idx.INDEX_NAME !== indexName);
         }
       }
     }
-    for (const indexMetadata of [...tableIndexes, ...indexes]) {
+    for (const indexMetadata of [...tableIndices, ...indices]) {
       statements.push([...resolveIndex(this.options.db!, entityMetadata.dbName!, indexMetadata)]);
     }
     if (this.options.syncOptions?.dropUnknownIndices) {
-      for (const indexDb of indexesDb) {
+      for (const indexDb of indicesDb) {
         statements.push(['DROP INDEX ?? ON ??.??', [indexDb.INDEX_NAME, this.options.db, entityMetadata.dbName]]);
       }
     }

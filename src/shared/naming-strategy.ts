@@ -1,7 +1,7 @@
 import { Injectable } from '../injector/injectable.ts';
 import { injector } from '../injector/injector.ts';
 import { camelCase, snakeCase } from 'case';
-import { IndexMetadata } from '../entity/indexes.ts';
+import { IndexMetadata } from '../entity/indices.ts';
 import { sha1 } from './util.ts';
 import { RelationMetadata } from '../entity/relation.ts';
 

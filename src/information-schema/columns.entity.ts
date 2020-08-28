@@ -38,7 +38,7 @@ export class Columns {
   table!: Tables;
 
   @OneToMany(() => Statistics, 'column')
-  indexes!: Statistics[];
+  indices!: Statistics[];
 
   getType(): {
     type: ColumnType;

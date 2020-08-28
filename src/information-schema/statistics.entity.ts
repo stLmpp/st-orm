@@ -25,7 +25,7 @@ export class Statistics {
   @Column({ select: false }) IS_VISIBLE?: 'YES' | 'NO';
   @Column({ select: false }) EXPRESSION?: string;
 
-  @ManyToOne(() => Columns, 'indexes')
+  @ManyToOne(() => Columns, 'indices')
   @JoinColumn([
     {
       name: 'TABLE_SCHEMA',

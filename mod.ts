@@ -6,7 +6,7 @@ import { Connection } from './src/connection/connection.ts';
 import { DB_CONFIG } from './test/db.config.ts';
 import { Column, PrimaryColumn, PrimaryGeneratedColumn } from './src/entity/column.ts';
 import { Entity } from './src/entity/entity.ts';
-import { Index, Indexes, UniqueIndex } from './src/entity/indexes.ts';
+import { Index, Indices, UniqueIndex } from './src/entity/indices.ts';
 import { OneToOne } from './src/entity/one-to-one.ts';
 import { JoinColumn } from './src/entity/join-column.ts';
 import { ManyToOne } from './src/entity/many-to-one.ts';
@@ -28,7 +28,7 @@ export class User {
   nome!: string;
 }
 
-@Indexes(['index2', 'index1'])
+@Indices(['index2', 'index1'])
 @Entity()
 export class Perfil {
   @PrimaryGeneratedColumn()

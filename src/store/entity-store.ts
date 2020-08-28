@@ -3,7 +3,7 @@ import { ColumnMetadata, ColumnType, isStringType } from '../entity/column.ts';
 import { isString } from 'is-what';
 import { Injectable } from '../injector/injectable.ts';
 import { injector } from '../injector/injector.ts';
-import { IndexMetadata } from '../entity/indexes.ts';
+import { IndexMetadata } from '../entity/indices.ts';
 import { RelationCascade, RelationMetadata, RelationType } from '../entity/relation.ts';
 import { NamingStrategy } from '../shared/naming-strategy.ts';
 import { Type } from '../shared/type.ts';
@@ -85,14 +85,14 @@ export class EntityStore {
       this.#state.upsert(target, entity => {
         return {
           ...entity,
-          indexes: [...(entity?.indexes ?? []), metadata],
+          indices: [...(entity?.indices ?? []), metadata],
         };
       });
     } else if (propertyKey) {
       this.upsertColumn(target, propertyKey, columnMetadata => {
         return {
           ...columnMetadata,
-          indexes: [...(columnMetadata?.indexes ?? []), metadata],
+          indices: [...(columnMetadata?.indices ?? []), metadata],
         };
       });
     }
@@ -100,11 +100,11 @@ export class EntityStore {
 
   addUniqueIndex(target: any, propertyKey: string): void {
     const columnMeta = this.get(target)?.columnsMetadata.get(propertyKey);
-    if (!columnMeta?.indexes?.some(index => index.unique)) {
+    if (!columnMeta?.indices?.some(index => index.unique)) {
       this.upsertColumn(target, propertyKey, columnMetadata => {
         return {
           ...columnMetadata,
-          indexes: [...(columnMetadata?.indexes ?? []), { unique: true }],
+          indices: [...(columnMetadata?.indices ?? []), { unique: true }],
         };
       });
     }
@@ -141,7 +141,7 @@ export class EntityStore {
     const entityUpdate: Partial<EntityMetadata> = {};
     entityUpdate.dbName = namingStrategy.tableName(entityMetadata.name!);
     entityUpdate.columnsMetadata = new StMap();
-    entityUpdate.indexes = (entityMetadata.indexes ?? []).map(index => ({
+    entityUpdate.indices = (entityMetadata.indices ?? []).map(index => ({
       ...index,
       dbName: namingStrategy.indexName(entityUpdate.dbName!, index.columns!, index),
       tableName: entityUpdate.dbName,
@@ -151,7 +151,7 @@ export class EntityStore {
       columnMetadata = {
         ...columnMetadata,
         dbName: columnDbName,
-        indexes: (columnMetadata.indexes ?? []).map(index => {
+        indices: (columnMetadata.indices ?? []).map(index => {
           return {
             ...index,
             dbName: namingStrategy.indexName(entityUpdate.dbName!, [columnDbName], index),

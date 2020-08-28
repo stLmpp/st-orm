@@ -17,27 +17,6 @@ export class InformationSchemaService {
   tableRepository: Repository<Tables>;
   columnRepository: Repository<Columns>;
 
-  async getIndexesByTable(tableName: string): Promise<Statistics[]> {
-    const qb = this.statisticsRepository
-      .createQueryBuilder('s')
-      .andWhere('s.table_schema = :schema', { schema: this.options.db })
-      .andWhere('s.table_name = :tableName', { tableName })
-      .andWhere('s.index_name != :indexName', { indexName: 'PRIMARY' });
-    if (+this.informationSchemaConnection.driver.options.isGreaterThan5) {
-      qb.includeNotSelectable();
-    }
-    return qb.getMany();
-  }
-
-  async getIndexes(tableNames: string[]): Promise<Statistics[]> {
-    return this.statisticsRepository
-      .createQueryBuilder('s')
-      .andWhere('s.table_name in :tableNames', { tableNames })
-      .andWhere('s.table_schema = :schema', { schema: this.options.db })
-      .andWhere('s.index_name != :indexName', { indexName: 'PRIMARY' })
-      .getMany();
-  }
-
   async getAllTables(): Promise<Tables[]> {
     const qb = this.tableRepository
       .createQueryBuilder('t')
@@ -53,7 +32,7 @@ export class InformationSchemaService {
         return constraint;
       });
       table.columns = (table.columns ?? []).map(column => {
-        column.indexes = column.indexes.filter(
+        column.indices = column.indices.filter(
           idx => !table.constraints.some(fk => fk.CONSTRAINT_NAME === idx.INDEX_NAME)
         );
         return column;

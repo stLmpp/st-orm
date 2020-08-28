@@ -35,7 +35,7 @@ export function UniqueIndex(options: IndexOptions = {}): PropertyDecorator {
   };
 }
 
-export function Indexes(columns: string[] | Record<string, IndexOptions>): ClassDecorator {
+export function Indices(columns: string[] | Record<string, IndexOptions>): ClassDecorator {
   return target => {
     if (isArray(columns)) {
       entityStore.addIndex(target, { columns });

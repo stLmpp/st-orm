@@ -1,6 +1,6 @@
 import { JoinColumnOptions } from './join-column.ts';
 import { isArray } from 'is-what';
-import { entityStore } from '../store/entity-store.ts';
+import { entityStore } from '../store/entity.store.ts';
 import { Type } from '../shared/type.ts';
 
 export interface JoinTableOptions {

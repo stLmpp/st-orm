@@ -1,4 +1,4 @@
-import { entityStore } from '../store/entity-store.ts';
+import { entityStore } from '../store/entity.store.ts';
 
 export type FormulaFn = (tableAlias: string, columnAlias: string) => string;
 

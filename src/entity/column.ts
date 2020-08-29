@@ -1,11 +1,10 @@
 import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { isArray, isDate, isNullOrUndefined, isNumber, isString } from 'is-what';
-import { entityStore } from '../store/entity-store.ts';
+import { entityStore } from '../store/entity.store.ts';
 import { applyDecorators, isArrayEqual } from '../shared/util.ts';
 import { IndexMetadata } from './indices.ts';
 import { Columns } from '../information-schema/columns.entity.ts';
 import { format } from 'datetime';
-import { StMap } from '../shared/map.ts';
 
 export interface ColumnOptions {
   propertyKey?: string;
@@ -304,7 +303,7 @@ function resolveMySqlType(type: any): ColumnType | undefined {
   return mappedType.get(type);
 }
 
-const mappedType = new StMap<any, ColumnType>()
+const mappedType = new Map<any, ColumnType>()
   .set(Number, ColumnType.int)
   .set(String, ColumnType.varchar)
   .set(Boolean, ColumnType.boolean)

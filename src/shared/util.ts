@@ -4,7 +4,7 @@ import { Type } from './type.ts';
 import { isAnyObject, isFunction, isString } from 'is-what';
 import { StMap } from './map.ts';
 
-export function applyDecorators(...decorators: Array<PropertyDecorator | MethodDecorator>): any {
+export function applyDecorators(...decorators: any[]): any {
   return (target: any, propertyKey: string | symbol, arg2: any) => {
     ReflectMetadata.decorate(decorators, target, propertyKey, arg2);
   };
@@ -63,6 +63,10 @@ export function groupBy<T, K extends keyof T>(array: T[], key: K): StMap<T[K], T
     },
     new StMap<T[K], T[]>(() => [])
   );
+}
+
+export function isKeyof<T>(value: any): value is keyof T {
+  return isString(value);
 }
 
 export function random(max = 0, min = 0): number {

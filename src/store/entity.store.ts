@@ -14,18 +14,13 @@ import { FormulaFn } from '../entity/formula.ts';
 @Injectable()
 export class EntityStore {
   #state = new StMap<any, EntityMetadata>(() => ({
-    columnsMetadata: new StMap(),
-    relationsMetadata: new StMap(),
+    columnsMetadata: new StMap(() => ({})),
+    relationsMetadata: new StMap(() => ({} as any)),
     formulas: new StMap(),
   }));
 
   get(target: any): EntityMetadata | undefined {
     return this.#state.get(target);
-  }
-
-  set(target: any, metadata: EntityMetadata): EntityMetadata {
-    this.#state.set(target, metadata);
-    return this.#state.get(target)!;
   }
 
   upsert(target: any, callback: (meta: EntityMetadata) => EntityMetadata): void;
@@ -140,7 +135,7 @@ export class EntityStore {
   private updateNames(entity: Type, entityMetadata: EntityMetadata, namingStrategy: NamingStrategy): void {
     const entityUpdate: Partial<EntityMetadata> = {};
     entityUpdate.dbName = namingStrategy.tableName(entityMetadata.name!);
-    entityUpdate.columnsMetadata = new StMap();
+    entityUpdate.columnsMetadata = new StMap(() => ({}));
     entityUpdate.indices = (entityMetadata.indices ?? []).map(index => ({
       ...index,
       dbName: namingStrategy.indexName(entityUpdate.dbName!, index.columns!, index),
@@ -171,6 +166,18 @@ export class EntityStore {
         this.upsertColumn(entity, columnKey, { collation });
       }
     }
+  }
+
+  private mapColumns(entity: Type): void {
+    this.upsert(entity, entityMetadata => {
+      return {
+        ...entityMetadata,
+        columnProperties: entityMetadata.columnsMetadata.reduce(
+          (acc, [columnKey]) => ({ ...acc, [columnKey]: columnKey }),
+          {}
+        ),
+      };
+    });
   }
 
   updateDefaults({ name: connection, collation }: ConnectionConfigInternal, namingStrategy: NamingStrategy): void {
@@ -246,7 +253,7 @@ export class EntityStore {
           } else {
             name = namingStrategy.tableName(name);
           }
-          const columnsMetadata: StMap<string, ColumnMetadata> = new StMap();
+          const columnsMetadata: StMap<string, ColumnMetadata> = new StMap(() => ({}));
           for (const joinColumn of [...joinColumns, ...inverseJoinColumns]) {
             columnsMetadata.set(joinColumn.name!, {
               type: ColumnType.int,
@@ -257,7 +264,7 @@ export class EntityStore {
               select: true,
             });
           }
-          const relationsMetadata = new StMap<string, RelationMetadata>()
+          const relationsMetadata = new StMap<string, RelationMetadata>(() => ({} as any))
             .set(ownerTableName, {
               reference: targetKey,
               referenceType: targetKey,
@@ -364,7 +371,7 @@ export class EntityStore {
                     ...inverseColumn,
                     propertyKey: joinColumn.name,
                     name: joinColumn.name,
-                    select: false,
+                    select: true,
                     comment: `Auto generated from relation between ${target.name} and ${inverseMeta.name}`,
                     primary: false,
                     generated: undefined,
@@ -392,6 +399,7 @@ export class EntityStore {
       this.upsert(entity, { primaries });
       this.updateNames(entity, entityMetadata, namingStrategy);
       this.updateColumnsCharset(entity, entityMetadata, collation!);
+      this.mapColumns(entity);
     }
   }
 }

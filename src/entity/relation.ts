@@ -1,7 +1,7 @@
 import { Type } from '../shared/type.ts';
 import { JoinColumnOptions } from './join-column.ts';
 import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
-import { entityStore } from '../store/entity-store.ts';
+import { entityStore } from '../store/entity.store.ts';
 import { isAnyObject, isArray, isFunction, isNumber, isString } from 'is-what';
 import { JoinTableMetadata } from './join-table.ts';
 import { TableConstraints } from '../information-schema/table-constraints.entity.ts';

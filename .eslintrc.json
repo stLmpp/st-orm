@@ -73,8 +73,11 @@
     "object-curly-spacing": ["error", "always"],
     "@typescript-eslint/no-non-null-assertion": "off",
     "@typescript-eslint/ban-ts-comment": "off",
-    "prefer-const": ["error", {
-      "destructuring": "all"
-    }]
+    "prefer-const": [
+      "error",
+      {
+        "destructuring": "all"
+      }
+    ]
   }
 }

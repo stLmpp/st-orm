@@ -4,7 +4,7 @@ export class StMap<S, T> extends Map<S, T> {
   static defaultMerger = (a: any, b: any): any => ({ ...a, ...b });
 
   constructor(
-    defaultValueFactory: () => T = () => ({} as any), // TODO REFACTOR
+    defaultValueFactory: () => T = () => null as any, // TODO REFACTOR
     merger: (oldEntry: T, newEntry: T | Partial<T>) => T = StMap.defaultMerger
   ) {
     super();

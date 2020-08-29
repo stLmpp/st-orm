@@ -1,4 +1,4 @@
-import { entityStore } from '../store/entity-store.ts';
+import { entityStore } from '../store/entity.store.ts';
 import { isArray } from 'is-what';
 
 export interface JoinColumnOptions {

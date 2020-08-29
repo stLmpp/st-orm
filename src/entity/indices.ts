@@ -1,4 +1,4 @@
-import { entityStore } from '../store/entity-store.ts';
+import { entityStore } from '../store/entity.store.ts';
 import { isArray } from 'is-what';
 import { Statistics } from '../information-schema/statistics.entity.ts';
 import { isNullOrUndefined } from 'is-what';

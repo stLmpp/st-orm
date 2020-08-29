@@ -9,6 +9,7 @@ import { plainToClass } from '../node-libs/class-transformer.ts';
 import { ColumnMetadata } from '../entity/column.ts';
 import { RelationMetadata, RelationType } from '../entity/relation.ts';
 import { StMap } from '../shared/map.ts';
+import { JoinColumnOptions } from '../entity/join-column.ts';
 
 export interface QueryBuilderSelect {
   selection: string;
@@ -767,10 +768,17 @@ export class SelectQueryBuilder<T> {
             );
           }
           const joinEntities: any[] = plainToClass(join.fromEntity, joinRawEntities);
+          const comparator =
+            join.relationMetadata!.type === RelationType.oneToOne
+              ? (rawEntity: any, joinEntity: any, joinColumn: JoinColumnOptions) =>
+                  rawEntity[joinColumn.name!] === joinEntity[joinColumn.referencedColumn!]
+              : (rawEntity: any, joinEntity: any, joinColumn: JoinColumnOptions) =>
+                  rawEntity[joinColumn.referencedColumn!] === joinEntity[joinColumn.name!];
+          // TODO investigate this, it's weird :b
           rawEntities = rawEntities.map(rawEntity => {
             const joinRelationEntities = joinEntities.filter(joinEntity => {
-              return join.relationMetadata!.joinColumns!.every(
-                joinColumn => rawEntity[joinColumn.referencedColumn!] === joinEntity[joinColumn.name!]
+              return join.relationMetadata!.joinColumns!.every(joinColumn =>
+                comparator(rawEntity, joinEntity, joinColumn)
               );
             });
             return {

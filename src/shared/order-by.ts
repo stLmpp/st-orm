@@ -1,4 +1,4 @@
-import { OrderByDirection } from '../query-builder/query-builder.ts';
+import { OrderByDirection } from '../query-builder/select-query-builder.ts';
 import { isArray, isNullOrUndefined, isString } from 'is-what';
 
 type Comparator<T = any> = (valueA: T, valueB: T) => number;

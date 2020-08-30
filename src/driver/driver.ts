@@ -4,7 +4,7 @@ import { EntityMetadata } from '../entity/entity.ts';
 import { Connection, ConnectionConfigInternal } from '../connection/connection.ts';
 import { columnHasChanged, ColumnMetadata, resolveColumn } from '../entity/column.ts';
 import { indexHasChanged, IndexMetadata, resolveIndex } from '../entity/indices.ts';
-import { SelectQueryBuilder } from '../query-builder/query-builder.ts';
+import { SelectQueryBuilder } from '../query-builder/select-query-builder.ts';
 import { InformationSchemaService } from '../information-schema/information-schema.service.ts';
 import { replaceParams } from 'sql-builder';
 import { Tables } from '../information-schema/tables.entity.ts';
@@ -15,6 +15,8 @@ import { StMap } from '../shared/map.ts';
 import { groupBy, isArrayEqual } from '../shared/util.ts';
 import { Statistics } from '../information-schema/statistics.entity.ts';
 import { TableConstraints } from '../information-schema/table-constraints.entity.ts';
+import { ExecuteResult, Type } from '../shared/type.ts';
+import { UpdateQueryBuilder } from '../query-builder/update-query-builder.ts';
 
 export class Driver {
   constructor(
@@ -37,11 +39,23 @@ export class Driver {
   }
 
   async query<U = any>(query: string, params?: any[]): Promise<U[]> {
-    return await this.client.query(query, params);
+    return this.client.query(query, params);
   }
 
-  createQueryBuilder(): SelectQueryBuilder<any> {
+  async execute(sql: string, params?: any[]): Promise<ExecuteResult> {
+    return this.client.execute(sql, params);
+  }
+
+  createSelectQueryBuilder(): SelectQueryBuilder<any> {
     return new SelectQueryBuilder(this, this.entitiesMap);
+  }
+
+  createUpdateQueryBuilder<T>(entity: Type<T>, alias?: string): UpdateQueryBuilder<any> {
+    const entityMetadata = this.entitiesMap.get(entity);
+    if (!entityMetadata) {
+      throw new Error(`Could not find metadata for ${entity?.name ?? entity}`);
+    }
+    return new UpdateQueryBuilder<T>(this, entityMetadata, alias ?? entityMetadata.dbName!);
   }
 
   async confirmDb(statements: [string, any[]][]): Promise<boolean> {

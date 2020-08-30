@@ -19,7 +19,7 @@ export class InformationSchemaService {
 
   async getAllTables(): Promise<Tables[]> {
     const qb = this.tableRepository
-      .createQueryBuilder('t')
+      .createSelectQueryBuilder('t')
       .andWhere('t.table_schema = :schema', { schema: this.options.db })
       .leftJoinAndSelect(['t', Columns], 'c')
       .leftJoinAndSelect(['c', Statistics], 'i', 'i.index_name != :indexName', { indexName: 'PRIMARY' })

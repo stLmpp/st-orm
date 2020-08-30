@@ -13,6 +13,7 @@ import { ManyToOne } from './src/entity/many-to-one.ts';
 import { OneToMany } from './src/entity/one-to-many.ts';
 import { ManyToMany } from './src/entity/many-to-many.ts';
 import { JoinTable } from './src/entity/join-table.ts';
+import { UpdateQueryBuilder } from './src/query-builder/update-query-builder.ts';
 
 enum Teste {
   teste = 'testeSAAS',
@@ -187,14 +188,15 @@ export class SubMode {
 const app = new Application();
 const connection = await Connection.createConnection({ ...DB_CONFIG });
 
-const gameRepository = connection.getRepository(Game);
+const qb = new UpdateQueryBuilder<Game>(connection.driver, connection.entitiesMap.get(Game)!, 'g');
 
-const qb = gameRepository.createQueryBuilder('g').andWhere('g.id = 1').innerJoinAndSelect('g.gameSettings', 'gs');
+qb.set({ nome: 'Guilherme' });
 
-const game = await qb.getOne();
+qb.andWhere({ id: 1 }, 'g');
 
-console.log(game);
-
+console.log(qb.getQueryAndParameters());
+console.log(qb.getQuery());
+console.log(await qb.execute());
 /*console.log(await qb.getMany());*/
 
 /*const qb = connection.driver.informationSchemaService.tableRepository
@@ -202,16 +204,19 @@ console.log(game);
   .andWhere('t.table_schema = :schema', { schema: 'orcamento' })
   .innerJoinAndSelect('t.columns', 'c');
 await qb.getOne();*/
-
-/*const routes = new Router();
+/*
+const routes = new Router();
 routes
-  .get('/grupo', async context => {
-    context.response.body = await connection.query('select * from grupo');
+  .get('/game', async context => {
+    context.response.body = await connection.getRepository(Game).createQueryBuilder('g').getMany();
   })
-  .get('/grupo/:idGrupo', async context => {
-    const idGrupo = +context.params.idGrupo!;
-    const query = 'select * from grupo where id = ?';
-    context.response.body = await connection.query(query, [idGrupo]);
+  .get('/game/:idGame', async context => {
+    const idGame = +context.params.idGame!;
+    context.response.body = await connection
+      .getRepository(Game)
+      .createQueryBuilder('g')
+      .andWhere('g.id = ?', [idGame])
+      .getOne();
   });
 
 app.use(routes.routes());

@@ -4,6 +4,7 @@ import { OrderByDirection, SelectQueryBuilder } from '../query-builder/select-qu
 import { EntityMetadata } from '../entity/entity.ts';
 import { isAnyObject } from 'is-what';
 import { UpdateQueryBuilder } from '../query-builder/update-query-builder.ts';
+import { DeleteQueryBuilder } from '../query-builder/delete-query-builder.ts';
 
 export type FindConditions<T> = {
   [K in keyof T]?: T[K] extends Primitive
@@ -33,6 +34,10 @@ export class Repository<T> {
 
   createUpdateQueryBuilder(alias?: string): UpdateQueryBuilder<T> {
     return this.driver.createUpdateQueryBuilder(this.entity, alias);
+  }
+
+  createDeleteQueryBuilder(alias?: string): DeleteQueryBuilder<T> {
+    return this.driver.createDeleteQueryByulder(this.entity, alias);
   }
 
   async findOne(id: number | string): Promise<T | undefined>;

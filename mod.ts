@@ -13,7 +13,6 @@ import { ManyToOne } from './src/entity/many-to-one.ts';
 import { OneToMany } from './src/entity/one-to-many.ts';
 import { ManyToMany } from './src/entity/many-to-many.ts';
 import { JoinTable } from './src/entity/join-table.ts';
-import { UpdateQueryBuilder } from './src/query-builder/update-query-builder.ts';
 
 enum Teste {
   teste = 'testeSAAS',
@@ -188,15 +187,13 @@ export class SubMode {
 const app = new Application();
 const connection = await Connection.createConnection({ ...DB_CONFIG });
 
-const qb = new UpdateQueryBuilder<Game>(connection.driver, connection.entitiesMap.get(Game)!, 'g');
+const repo = connection.getRepository(Game);
 
-qb.set({ nome: 'Guilherme' });
+const qb = repo.createDeleteQueryBuilder();
 
-qb.andWhere({ id: 1 }, 'g');
+qb.andWhere({ nome: 'Teste' });
 
-console.log(qb.getQueryAndParameters());
 console.log(qb.getQuery());
-console.log(await qb.execute());
 /*console.log(await qb.getMany());*/
 
 /*const qb = connection.driver.informationSchemaService.tableRepository

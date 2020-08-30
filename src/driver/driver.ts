@@ -17,6 +17,7 @@ import { Statistics } from '../information-schema/statistics.entity.ts';
 import { TableConstraints } from '../information-schema/table-constraints.entity.ts';
 import { ExecuteResult, Type } from '../shared/type.ts';
 import { UpdateQueryBuilder } from '../query-builder/update-query-builder.ts';
+import { DeleteQueryBuilder } from '../query-builder/delete-query-builder.ts';
 
 export class Driver {
   constructor(
@@ -56,6 +57,14 @@ export class Driver {
       throw new Error(`Could not find metadata for ${entity?.name ?? entity}`);
     }
     return new UpdateQueryBuilder<T>(this, entityMetadata, alias ?? entityMetadata.dbName!);
+  }
+
+  createDeleteQueryByulder<T>(entity: Type<T>, alias?: string): DeleteQueryBuilder<T> {
+    const entityMetadata = this.entitiesMap.get(entity);
+    if (!entityMetadata) {
+      throw new Error(`Could not find metadata for ${entity?.name ?? entity}`);
+    }
+    return new DeleteQueryBuilder<T>(this, entityMetadata, alias ?? entityMetadata.dbName!);
   }
 
   async confirmDb(statements: [string, any[]][]): Promise<boolean> {

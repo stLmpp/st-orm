@@ -2,6 +2,7 @@ import { entityStore } from '../store/entity.store.ts';
 import { isArray } from 'is-what';
 import { Statistics } from '../information-schema/statistics.entity.ts';
 import { isNullOrUndefined } from 'is-what';
+import { Statement } from '../shared/type.ts';
 
 export enum IndexVisibility {
   visible = 'VISIBLE',
@@ -47,7 +48,7 @@ export function Indices(columns: string[] | Record<string, IndexOptions>): Class
   };
 }
 
-export function resolveIndex(databaseName: string, tableName: string, indexMetadata: IndexMetadata): [string, any[]] {
+export function resolveIndex(databaseName: string, tableName: string, indexMetadata: IndexMetadata): Statement {
   const params: any[] = [databaseName, tableName];
   let idxType = '';
   if (indexMetadata.unique) {

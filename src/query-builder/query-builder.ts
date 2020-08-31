@@ -1,10 +1,10 @@
 import { QueryBuilderWhere, QueryBuilderWhereOperator, SelectQueryBuilder } from './select-query-builder.ts';
 import { isAnyObject, isArray, isFunction, isString } from 'is-what';
-import { Primitive } from '../shared/type.ts';
+import { Primitive, Statement } from '../shared/type.ts';
 
 export interface QueryBuilder {
-  getQuery(): string;
-  getQueryAndParameters(): [string, any[]];
+  getQuery(): string | string[];
+  getQueryAndParameters(): Statement | Statement[];
 }
 
 export type SelectQueryBuilderFn<R = any, T = any> = (queryBuilder: SelectQueryBuilder<T>) => R;
@@ -51,7 +51,7 @@ export function baseWhere<T>({
   }
 }
 
-export function replaceParams(statement: string, params?: Record<string, any> | any[]): [string, any[]] {
+export function replaceParams(statement: string, params?: Record<string, any> | any[]): Statement {
   if (isArray(params)) {
     return [statement, params];
   }
@@ -66,7 +66,7 @@ export function replaceParams(statement: string, params?: Record<string, any> | 
   return [statement.replace(PARAM_REGEX, '?'), newParams];
 }
 
-export function getWhereStatement(whereStore: QueryBuilderWhere[]): [string, any[]] {
+export function getWhereStatement(whereStore: QueryBuilderWhere[]): Statement {
   let statement = '';
   const params: any[] = [];
   if (whereStore.length) {

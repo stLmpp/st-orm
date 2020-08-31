@@ -8,7 +8,7 @@ import {
   QueryBuilderWhereParams,
   SelectQueryBuilder,
 } from './select-query-builder.ts';
-import { ConditionalPick, ExecuteResult, Primitive, Type } from '../shared/type.ts';
+import { ConditionalPick, ExecuteResult, Primitive, Statement, Type } from '../shared/type.ts';
 import { isAnyObject } from 'is-what';
 
 export class UpdateQueryBuilder<T> implements QueryBuilder {
@@ -27,7 +27,7 @@ export class UpdateQueryBuilder<T> implements QueryBuilder {
   #setStore: [keyof T, T[keyof T]][] = [];
   #whereStore: QueryBuilderWhere[] = [];
 
-  from<U>(entity: Type<U>, alias?: string): UpdateQueryBuilder<U> {
+  update<U>(entity: Type<U>, alias?: string): UpdateQueryBuilder<U> {
     return this.#driver.createUpdateQueryBuilder(entity, alias);
   }
 
@@ -125,7 +125,7 @@ export class UpdateQueryBuilder<T> implements QueryBuilder {
     return replaceParams(...this.getQueryAndParameters());
   }
 
-  getQueryAndParameters(): [string, any[]] {
+  getQueryAndParameters(): Statement {
     let statement = 'UPDATE ??.?? AS ?? SET ';
     const params: any[] = [this.#databaseName, this.#entityMetadata.dbName, this.#alias];
     for (const set of this.#setStore) {

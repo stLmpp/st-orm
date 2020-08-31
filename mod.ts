@@ -136,9 +136,6 @@ export class Game {
   @JoinTable()
   modes!: Mode[];
 
-  @Column()
-  idGameSettings!: number;
-
   @OneToOne(() => GameSettings, 'game')
   gameSettings!: GameSettings;
 }
@@ -185,15 +182,16 @@ export class SubMode {
 }
 
 const app = new Application();
-const connection = await Connection.createConnection({ ...DB_CONFIG });
+const connection = await Connection.createConnection({ ...DB_CONFIG, sync: false });
 
 const repo = connection.getRepository(Game);
 
-const qb = repo.createDeleteQueryBuilder();
+const qb = repo.createInsertQueryBuilder();
 
-qb.andWhere({ nome: 'Teste' });
+qb.values([{ nome: '1' }, { nome: '2' }]);
+qb.addValues(q => q.from(Mode, 'm').select('m.nome')).column('nome');
 
-console.log(qb.getQuery());
+qb.getQuery().forEach(sql => console.log(sql));
 /*console.log(await qb.getMany());*/
 
 /*const qb = connection.driver.informationSchemaService.tableRepository

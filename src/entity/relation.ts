@@ -1,4 +1,4 @@
-import { Type } from '../shared/type.ts';
+import { Statement, Type } from '../shared/type.ts';
 import { JoinColumnOptions } from './join-column.ts';
 import { ReflectMetadata, ReflectMetadataTypes } from '../store/meta.ts';
 import { entityStore } from '../store/entity.store.ts';
@@ -102,7 +102,7 @@ export function resolveRelation(
   name: string,
   referencedTableName: string,
   relationMetadata: RelationMetadata
-): [string, any[]] {
+): Statement {
   let statement = 'ALTER TABLE ??.?? ADD CONSTRAINT ?? ';
   const params: any[] = [databaseName, tableName, name];
   if (relationMetadata.joinColumns?.length) {

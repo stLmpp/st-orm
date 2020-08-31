@@ -65,6 +65,15 @@ export function groupBy<T, K extends keyof T>(array: T[], key: K): StMap<T[K], T
   );
 }
 
+export function groupWith<T>(array: T[], callback: (entry: T) => any): StMap<any, T[]> {
+  return array.reduce(
+    (acc, item) => {
+      return acc.upsert(callback(item), items => [...(items ?? []), item]);
+    },
+    new StMap<any, T[]>(() => [])
+  );
+}
+
 export function isKeyof<T>(value: any): value is keyof T {
   return isString(value);
 }

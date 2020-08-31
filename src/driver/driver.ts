@@ -15,15 +15,17 @@ import { StMap } from '../shared/map.ts';
 import { groupBy, isArrayEqual } from '../shared/util.ts';
 import { Statistics } from '../information-schema/statistics.entity.ts';
 import { TableConstraints } from '../information-schema/table-constraints.entity.ts';
-import { ExecuteResult, Type } from '../shared/type.ts';
+import { ExecuteResult, Statement, Type } from '../shared/type.ts';
 import { UpdateQueryBuilder } from '../query-builder/update-query-builder.ts';
 import { DeleteQueryBuilder } from '../query-builder/delete-query-builder.ts';
+import { InsertQueryBuilder } from '../query-builder/insert-query-builder.ts';
+import { TransactionProcessor } from 'https://deno.land/x/mysql@v2.4.0/src/client.ts';
 
 export class Driver {
   constructor(
     private client: Client,
     public options: ConnectionConfigInternal,
-    private entitiesMap: StMap<any, EntityMetadata>,
+    public entitiesMap: StMap<any, EntityMetadata>,
     private informationSchemaConnection?: Connection
   ) {
     this.namingStrategy = options.namingStrategy!;
@@ -47,6 +49,10 @@ export class Driver {
     return this.client.execute(sql, params);
   }
 
+  async transaction<T>(processor: TransactionProcessor<T>): Promise<T> {
+    return this.client.transaction<T>(connection => processor(connection));
+  }
+
   createSelectQueryBuilder(): SelectQueryBuilder<any> {
     return new SelectQueryBuilder(this, this.entitiesMap);
   }
@@ -67,7 +73,15 @@ export class Driver {
     return new DeleteQueryBuilder<T>(this, entityMetadata, alias ?? entityMetadata.dbName!);
   }
 
-  async confirmDb(statements: [string, any[]][]): Promise<boolean> {
+  createInsertQueryBuilder<T>(entity: Type<T>): InsertQueryBuilder<T> {
+    const entityMetadata = this.entitiesMap.get(entity);
+    if (!entityMetadata) {
+      throw new Error(`Could not find metadata for ${entity?.name ?? entity}`);
+    }
+    return new InsertQueryBuilder<T>(this, entityMetadata);
+  }
+
+  async confirmDb(statements: Statement[]): Promise<boolean> {
     for (const [sql, params] of statements) {
       // TODO LOGGER
       // eslint-disable-next-line no-console
@@ -102,7 +116,7 @@ export class Driver {
   }
 
   async sync(): Promise<void> {
-    let statements: [string, any[]][] = [];
+    let statements: Statement[] = [];
     let tables = await this.informationSchemaService.getAllTables();
     if (this.options.syncOptions?.dropSchema && tables.length) {
       for (const table of tables) {
@@ -131,8 +145,8 @@ export class Driver {
     }
   }
 
-  private async checkForUnknownTables(tables: Tables[]): Promise<[string, any[]][]> {
-    const statements: [string, any[]][] = [];
+  private async checkForUnknownTables(tables: Tables[]): Promise<Statement[]> {
+    const statements: Statement[] = [];
     const entities = [...this.entitiesMap.values()];
     for (const table of tables) {
       const entity = entities.find(({ dbName }) => dbName === table.TABLE_NAME);
@@ -147,8 +161,8 @@ export class Driver {
     tableName: string,
     columnsMetadataMap: StMap<string, ColumnMetadata>,
     columnsDb: Columns[]
-  ): Promise<[string, any[]][]> {
-    const statements: [string, any[]][] = [];
+  ): Promise<Statement[]> {
+    const statements: Statement[] = [];
     const columns = [...columnsMetadataMap.values()].map(({ dbName }) => dbName);
     for (const colDb of columnsDb) {
       if (!columns.includes(colDb.COLUMN_NAME)) {
@@ -158,9 +172,9 @@ export class Driver {
     return statements;
   }
 
-  private async getTableStatement(entityMetadata: EntityMetadata, tableDb?: Tables): Promise<[string, any[]][]> {
+  private async getTableStatement(entityMetadata: EntityMetadata, tableDb?: Tables): Promise<Statement[]> {
     const { columnsMetadata, dbName, relationsMetadata, comment, primaries } = entityMetadata;
-    const statements: [string, any[]][] = [];
+    const statements: Statement[] = [];
     const name = dbName!;
     if (!tableDb) {
       let statement = `CREATE TABLE ??.?? (`;
@@ -226,8 +240,8 @@ export class Driver {
     return statements;
   }
 
-  private async getIndicesStatements(entityMetadata: EntityMetadata, tableDb?: Tables): Promise<[string, any[]][]> {
-    const statements: [string, any[]][] = [];
+  private async getIndicesStatements(entityMetadata: EntityMetadata, tableDb?: Tables): Promise<Statement[]> {
+    const statements: Statement[] = [];
     let tableIndices = entityMetadata.indices ?? [];
     let indices = entityMetadata.columnsMetadata.reduce(
       (acc: IndexMetadata[], [, columnMetadata]) =>
@@ -282,8 +296,8 @@ export class Driver {
     tableName: string,
     relationsMetadata: StMap<string, RelationMetadata>,
     constraintsDb: TableConstraints[]
-  ): Promise<[string, any[]][]> {
-    const statements: [string, any[]][] = [];
+  ): Promise<Statement[]> {
+    const statements: Statement[] = [];
     for (const [, relationMeta] of relationsMetadata) {
       if (relationMeta.owner) {
         const referencedTableName = this.entitiesMap.get(relationMeta.referenceType)!.dbName!;

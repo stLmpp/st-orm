@@ -5,6 +5,7 @@ import { applyDecorators, isArrayEqual } from '../shared/util.ts';
 import { IndexMetadata } from './indices.ts';
 import { Columns } from '../information-schema/columns.entity.ts';
 import { format } from 'datetime';
+import { Statement } from '../shared/type.ts';
 
 export interface ColumnOptions {
   propertyKey?: string;
@@ -138,9 +139,9 @@ export enum ColumnType {
   bit = 'bit',
 }
 
-export type ColumnResolver = (columnMetadata: ColumnMetadata) => [string, any[]];
+export type ColumnResolver = (columnMetadata: ColumnMetadata) => Statement;
 
-function defaultColumnResolver(columnMetadata: ColumnMetadata): [string, any[]] {
+function defaultColumnResolver(columnMetadata: ColumnMetadata): Statement {
   const { name, generated, nullable, unsigned, zerofill, defaultRaw, collation, comment } = columnMetadata;
   const params: any[] = [name];
   const [typeStatement, typeParams] = getTypeAndLength(columnMetadata);
@@ -167,7 +168,7 @@ function defaultColumnResolver(columnMetadata: ColumnMetadata): [string, any[]] 
   return [column, params];
 }
 
-function getTypeAndLength({ length, precision, scale, enumValue, type }: ColumnMetadata): [string, any[]] {
+function getTypeAndLength({ length, precision, scale, enumValue, type }: ColumnMetadata): Statement {
   const params = [];
   const statement = enumValue ? ColumnType.enum : type;
   let len =
@@ -187,7 +188,7 @@ function getTypeAndLength({ length, precision, scale, enumValue, type }: ColumnM
   return [statement + len, params];
 }
 
-function intResolver(columnMetadata: ColumnMetadata): [string, any[]] {
+function intResolver(columnMetadata: ColumnMetadata): Statement {
   let [query, params] = defaultColumnResolver(columnMetadata);
   if (!columnMetadata.defaultRaw && !isNullOrUndefined(columnMetadata.defaultValue)) {
     query += ' DEFAULT ?';
@@ -196,7 +197,7 @@ function intResolver(columnMetadata: ColumnMetadata): [string, any[]] {
   return [query, params];
 }
 
-function booleanResolver(columnMetadata: ColumnMetadata): [string, any[]] {
+function booleanResolver(columnMetadata: ColumnMetadata): Statement {
   let [query, params] = defaultColumnResolver(columnMetadata);
   if (!columnMetadata.defaultRaw && !isNullOrUndefined(columnMetadata.defaultValue)) {
     query += ' DEFAULT ?';
@@ -205,7 +206,7 @@ function booleanResolver(columnMetadata: ColumnMetadata): [string, any[]] {
   return [query, params];
 }
 
-function dateResolver(columnMetadata: ColumnMetadata): [string, any[]] {
+function dateResolver(columnMetadata: ColumnMetadata): Statement {
   let [query, params] = defaultColumnResolver(columnMetadata);
   if (!columnMetadata.defaultRaw && !isNullOrUndefined(columnMetadata.defaultValue)) {
     query += ' DEFAULT ?';
@@ -218,7 +219,7 @@ function dateResolver(columnMetadata: ColumnMetadata): [string, any[]] {
   return [query, params];
 }
 
-function varcharResolver(columnMetadata: ColumnMetadata): [string, any[]] {
+function varcharResolver(columnMetadata: ColumnMetadata): Statement {
   let [query, params] = defaultColumnResolver(columnMetadata);
   if (!columnMetadata.defaultRaw && !isNullOrUndefined(columnMetadata.defaultValue)) {
     query += ' DEFAULT ?';

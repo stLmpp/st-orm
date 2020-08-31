@@ -1,6 +1,6 @@
 import { isAnyObject, isArray, isFunction, isNullOrUndefined, isNumber, isString } from 'is-what';
 import { EntityMetadata } from '../entity/entity.ts';
-import { Type } from '../shared/type.ts';
+import { Statement, Type } from '../shared/type.ts';
 import { isType, uniqWith } from '../shared/util.ts';
 import { replaceParams } from 'sql-builder';
 import { getAlias } from './util.ts';
@@ -252,7 +252,7 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     return this;
   }
 
-  private _replaceParams(statement: string, params?: Record<string, any> | any[]): [string, any[]] {
+  private _replaceParams(statement: string, params?: Record<string, any> | any[]): Statement {
     if (isArray(params)) {
       return [statement, params];
     }
@@ -810,7 +810,7 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     return replaceParams(query, params);
   }
 
-  getQueryAndParameters(): [string, any[]] {
+  getQueryAndParameters(): Statement {
     let query = 'SELECT ';
     if (this.#distinctStore) {
       query += 'DISTINCT ';

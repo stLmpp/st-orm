@@ -13,6 +13,7 @@ import { ManyToOne } from './src/entity/many-to-one.ts';
 import { OneToMany } from './src/entity/one-to-many.ts';
 import { ManyToMany } from './src/entity/many-to-many.ts';
 import { JoinTable } from './src/entity/join-table.ts';
+import { Between } from './src/query-builder/find-operators/between.ts';
 
 enum Teste {
   teste = 'testeSAAS',
@@ -186,12 +187,10 @@ const connection = await Connection.createConnection({ ...DB_CONFIG, sync: false
 
 const repo = connection.getRepository(Game);
 
-const qb = repo.createInsertQueryBuilder();
+const qb = repo.createSelectQueryBuilder('g').andWhere({ nome: Between(new Date(), new Date()) }, 'g');
 
-qb.values([{ nome: '1' }, { nome: '2' }]);
-qb.addValues(q => q.from(Mode, 'm').select('m.nome')).column('nome');
+console.log(qb.getQuery());
 
-qb.getQuery().forEach(sql => console.log(sql));
 /*console.log(await qb.getMany());*/
 
 /*const qb = connection.driver.informationSchemaService.tableRepository

@@ -1,6 +1,7 @@
 import { QueryBuilderWhere, QueryBuilderWhereOperator, SelectQueryBuilder } from './select-query-builder.ts';
-import { isAnyObject, isArray, isFunction, isString } from 'is-what';
+import { isAnyObject, isArray, isFunction, isPlainObject, isString } from 'is-what';
 import { Primitive, Statement } from '../shared/type.ts';
+import { findOperatorResolver, FindOperatorWhere } from './find-operators/find-operator.ts';
 
 export interface QueryBuilder {
   getQuery(): string | string[];
@@ -8,7 +9,10 @@ export interface QueryBuilder {
 }
 
 export type SelectQueryBuilderFn<R = any, T = any> = (queryBuilder: SelectQueryBuilder<T>) => R;
-export type WhereConditions = Record<string, Primitive | SelectQueryBuilderFn<SelectQueryBuilder<any>>>;
+export type WhereConditions = Record<
+  string,
+  Primitive | SelectQueryBuilderFn<SelectQueryBuilder<any>> | FindOperatorWhere<any>
+>;
 
 export interface WhereArgs {
   condition: string | SelectQueryBuilderFn<string> | WhereConditions;
@@ -17,7 +21,7 @@ export interface WhereArgs {
   createSelectQueryBuilder: () => SelectQueryBuilder<any>;
 }
 
-const PARAM_REGEX = /:(\w+)/g;
+const PARAM_REGEX = /:(.+?)(?=(\s|$))/gmu;
 
 export function baseWhere<T>({
   condition,
@@ -43,6 +47,17 @@ export function baseWhere<T>({
         const [newStatement, newParams] = value(createSelectQueryBuilder()).getQueryAndParameters();
         where.where = `??.?? = (${newStatement})`;
         where.params = [params, key, ...newParams];
+      } else if (isPlainObject(value)) {
+        const { findOperator, valueA, valueB } = value;
+        const [statement, _params] = findOperatorResolver({
+          tableAlias: params as any,
+          alias: key,
+          valueA,
+          valueB,
+          findOperator,
+        });
+        where.where = statement;
+        where.params = _params;
       }
       return where;
     });

@@ -1,7 +1,7 @@
 import { ReflectMetadata } from '../store/meta.ts';
 import { createHash } from 'hash';
 import { Type } from './type.ts';
-import { isAnyObject, isFunction, isString } from 'is-what';
+import { isAnyObject, isFunction, isPlainObject, isString } from 'is-what';
 import { StMap } from './map.ts';
 
 export function applyDecorators(...decorators: any[]): any {
@@ -80,4 +80,17 @@ export function isKeyof<T>(value: any): value is keyof T {
 
 export function random(max = 0, min = 0): number {
   return Math.random() * (max - min) + min;
+}
+
+export function cloneArrayShallow<T>(array: T[]): T[] {
+  if (!array?.length) {
+    return array;
+  }
+  const isObject = isPlainObject(array[0]);
+  array = [...array];
+  if (isObject) {
+    return array.map(value => ({ ...value }));
+  } else {
+    return array;
+  }
 }

@@ -13,7 +13,6 @@ import { ManyToOne } from './src/entity/many-to-one.ts';
 import { OneToMany } from './src/entity/one-to-many.ts';
 import { ManyToMany } from './src/entity/many-to-many.ts';
 import { JoinTable } from './src/entity/join-table.ts';
-import { Between } from './src/query-builder/find-operators/between.ts';
 
 enum Teste {
   teste = 'testeSAAS',
@@ -133,11 +132,11 @@ export class Game {
   @Column()
   nome!: string;
 
-  @ManyToMany(() => Mode)
+  @ManyToMany(() => Mode, 'games', { eager: true })
   @JoinTable()
   modes!: Mode[];
 
-  @OneToOne(() => GameSettings, 'game')
+  @OneToOne(() => GameSettings, 'game', { eager: true })
   gameSettings!: GameSettings;
 }
 
@@ -162,8 +161,11 @@ export class Mode {
   @Column()
   nome!: string;
 
-  @OneToMany(() => SubMode, 'mode')
+  @OneToMany(() => SubMode, 'mode', { eager: true })
   subModes!: SubMode[];
+
+  @ManyToMany(() => Game, 'modes')
+  games!: Game[];
 }
 
 @Entity()
@@ -187,9 +189,11 @@ const connection = await Connection.createConnection({ ...DB_CONFIG, sync: false
 
 const repo = connection.getRepository(Game);
 
-const qb = repo.createSelectQueryBuilder('g').andWhere({ nome: Between(new Date(), new Date()) }, 'g');
+const qb = repo.createSelectQueryBuilder('g').includeEagerRelations();
 
-console.log(qb.getQuery());
+console.log(
+  await connection.getRepository(Mode).createSelectQueryBuilder('g').innerJoinAndSelect('g.games', 'gs').getOne()
+);
 
 /*console.log(await qb.getMany());*/
 

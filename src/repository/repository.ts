@@ -8,10 +8,10 @@ import { DeleteQueryBuilder } from '../query-builder/delete-query-builder.ts';
 import { InsertQueryBuilder } from '../query-builder/insert-query-builder.ts';
 
 export type FindConditions<T> = {
-  [K in keyof T]?: T[K] extends Primitive
-    ? Primitive
-    : T[K] extends Date
+  [K in keyof T]?: T[K] extends Date
     ? Date | string
+    : T[K] extends Primitive
+    ? T[K]
     : T[K] extends Array<infer U>
     ? FindConditions<U>
     : T[K] extends Record<any, any>
@@ -27,7 +27,11 @@ export interface FindOptions<T> {
 }
 
 export class Repository<T> {
-  constructor(private entity: Type<T>, private entityMetadata: EntityMetadata, private driver: Driver) {}
+  constructor(private entity: Type<T>, private entityMetadata: EntityMetadata, private driver: Driver) {
+    this.#alias = this.entityMetadata.dbName!;
+  }
+
+  readonly #alias: string;
 
   createSelectQueryBuilder(alias?: string): SelectQueryBuilder<T> {
     return this.driver.createSelectQueryBuilder().from(this.entity, alias ?? this.entityMetadata.dbName!);
@@ -49,11 +53,10 @@ export class Repository<T> {
   async findOne(id: number | string, findOptions: FindOptions<T>): Promise<T | undefined>;
   async findOne(findOptions: FindOptions<T>): Promise<T | undefined>;
   async findOne(idOrOptions: number | string | FindOptions<T>, findOptions?: FindOptions<T>): Promise<T | undefined> {
-    const alias = this.entityMetadata.dbName!;
-    const qb = this.createSelectQueryBuilder(alias);
+    const qb = this.createSelectQueryBuilder(this.#alias);
     if (!isAnyObject(idOrOptions)) {
       for (const primary of this.entityMetadata.primaries ?? []) {
-        qb.andWhere(`??.?? = ?`, [alias, primary, idOrOptions]);
+        qb.andWhere(`??.?? = ?`, [this.#alias, primary, idOrOptions]);
       }
     }
     // TODO transfer this code to the entity manager maybe?

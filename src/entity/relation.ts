@@ -85,6 +85,7 @@ export function createRelationDecorator<T, K extends keyof T>(
       }
     }
     const metadata: RelationMetadata = {
+      ...options,
       propertyKey: propertyKey.toString(),
       type: relationType,
       reference: isString(type) ? type : type(undefined),

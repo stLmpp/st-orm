@@ -10,6 +10,7 @@ import { Type } from '../shared/type.ts';
 import { StMap } from '../shared/map.ts';
 import { ConnectionConfigInternal } from '../connection/connection.ts';
 import { FormulaFn } from '../entity/formula.ts';
+import { cloneArrayShallow } from '../shared/util.ts';
 
 @Injectable()
 export class EntityStore {
@@ -27,31 +28,6 @@ export class EntityStore {
   upsert(target: any, partial: Partial<EntityMetadata>): void;
   upsert(target: any, partialOrCallback: Partial<EntityMetadata> | ((meta: EntityMetadata) => EntityMetadata)): void {
     this.#state.upsert(target, partialOrCallback);
-  }
-
-  private addColumn(target: any, metadata: ColumnMetadata): void {
-    if (!metadata.propertyKey) {
-      throw new Error('Property key is required');
-    }
-    this.upsert(target, entity => {
-      return {
-        ...entity,
-        columnsMetadata: entity.columnsMetadata.set(metadata.propertyKey!, metadata),
-      };
-    });
-  }
-
-  private updateColumn(
-    target: any,
-    propertyKey: string,
-    partial: Partial<ColumnMetadata> | ((columnMetadata: ColumnMetadata | undefined) => ColumnMetadata)
-  ): void {
-    this.#state.upsert(target, entity => {
-      return {
-        ...entity,
-        columnsMetadata: entity.columnsMetadata.update(propertyKey, partial),
-      };
-    });
   }
 
   upsertColumn(
@@ -340,14 +316,28 @@ export class EntityStore {
           if (inversePropertyKey) {
             const inverseRelationMeta = inverseMeta.relationsMetadata.get(inversePropertyKey);
             if (inverseRelationMeta?.owner) {
-              relation = {
-                joinColumns: inverseRelationMeta.joinColumns!.map(({ referencedColumn, name }) => ({
-                  referencedColumn: name,
-                  name: referencedColumn,
-                })),
-                ...relation,
-              };
-              hasUpdate = true;
+              if (inverseRelationMeta.joinColumns?.length) {
+                relation = {
+                  joinColumns: inverseRelationMeta.joinColumns!.map(({ referencedColumn, name }) => ({
+                    referencedColumn: name,
+                    name: referencedColumn,
+                  })),
+                  ...relation,
+                };
+                hasUpdate = true;
+              } else if (inverseRelationMeta.joinTable) {
+                const { joinTable } = inverseRelationMeta;
+                relation = {
+                  joinTable: {
+                    type: joinTable.type,
+                    name: joinTable.name,
+                    joinColumns: cloneArrayShallow(joinTable.inverseJoinColumns),
+                    inverseJoinColumns: cloneArrayShallow(joinTable.joinColumns),
+                  },
+                  ...relation,
+                };
+                hasUpdate = true;
+              }
             }
           }
         }

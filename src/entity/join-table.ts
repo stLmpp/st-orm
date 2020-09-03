@@ -29,6 +29,7 @@ export function JoinTable(options: JoinTableOptions = {}): PropertyDecorator {
     entityStore.upsertRelation(target.constructor, propertyKey.toString(), {
       joinTable: metadata,
       propertyKey: propertyKey.toString(),
+      owner: true,
     });
   };
 }

@@ -12,6 +12,11 @@ import { StMap } from '../shared/map.ts';
 import { JoinColumnOptions } from '../entity/join-column.ts';
 import { QueryBuilder, baseWhere, getWhereStatement, SelectQueryBuilderFn, WhereConditions } from './query-builder.ts';
 
+export type KeyofJoin<T = any> = keyof Pick<
+  SelectQueryBuilder<T>,
+  'innerJoin' | 'innerJoinAndSelect' | 'leftJoin' | 'leftJoinAndSelect'
+>;
+
 export interface QueryBuilderSelect {
   selection: string;
   alias?: string;
@@ -391,6 +396,49 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     return selection;
   }
 
+  includeEagerRelations(joinType: QueryBuilderJoinType = QueryBuilderJoinType.leftJoin, select = true): this {
+    if (!this.#fromStore.length) {
+      throw new Error(`There must be a "from"`);
+    }
+    if (this.#fromStore.length > 1) {
+      throw new Error(`There must be only one "from"`);
+    }
+    const from = this.#fromStore[0];
+    if (!from.fromEntityMetadata) {
+      throw new Error(`EntityMetadata was not found`);
+    }
+    let method: KeyofJoin = joinType === QueryBuilderJoinType.leftJoin ? 'leftJoin' : 'innerJoin';
+    if (select) {
+      method += 'AndSelect';
+    }
+    for (const [, relationMetadata] of from.fromEntityMetadata.relationsMetadata) {
+      if (relationMetadata.eager) {
+        this._includeEagerRelationsRecursively(from.alias, relationMetadata, method as KeyofJoin);
+      }
+    }
+    return this;
+  }
+
+  private _includeEagerRelationsRecursively(
+    alias: string,
+    relationMetadata: RelationMetadata,
+    method: KeyofJoin
+  ): void {
+    const relationEntityMetadata = this.#entitiesMap.get(relationMetadata.referenceType);
+    if (!relationEntityMetadata) {
+      return;
+    }
+    const relationAlias = `${alias}_${relationEntityMetadata.dbName!}`;
+    this[method as KeyofJoin](`${alias}.${relationMetadata.propertyKey}`, relationAlias);
+    if (relationEntityMetadata.relationsMetadata.size) {
+      for (const [, relationMetadataInner] of relationEntityMetadata.relationsMetadata) {
+        if (relationMetadataInner.eager) {
+          this._includeEagerRelationsRecursively(relationAlias, relationMetadataInner, method);
+        }
+      }
+    }
+  }
+
   private _joinFinal({
     params,
     condition,
@@ -704,7 +752,8 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
   private _getRawUnique(rawData: any[], alias: string): any[] {
     const selection = this.#selectStore.filter(select => select.tableAlias === alias);
     const primary = selection.filter(select => select.columnMetadata!.primary);
-    const rawDataUnique = uniqWith(rawData, (valueA: any, valueB: any) =>
+    const rawDataFiltered = rawData.filter(value => primary.every(select => !isNullOrUndefined(value[select.alias!])));
+    const rawDataUnique = uniqWith(rawDataFiltered, (valueA: any, valueB: any) =>
       primary.every(select => valueA[select.alias!] === valueB[select.alias!])
     );
     return rawDataUnique.map(raw => {
@@ -768,12 +817,14 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
             );
           }
           const joinEntities: any[] = plainToClass(join.fromEntity, joinRawEntities);
-          const comparator =
+          /*const comparator =
             join.relationMetadata!.type === RelationType.oneToOne
               ? (rawEntity: any, joinEntity: any, joinColumn: JoinColumnOptions) =>
                   rawEntity[joinColumn.name!] === joinEntity[joinColumn.referencedColumn!]
               : (rawEntity: any, joinEntity: any, joinColumn: JoinColumnOptions) =>
-                  rawEntity[joinColumn.referencedColumn!] === joinEntity[joinColumn.name!];
+                  rawEntity[joinColumn.referencedColumn!] === joinEntity[joinColumn.name!];*/
+          const comparator = (rawEntity: any, joinEntity: any, joinColumn: JoinColumnOptions): boolean =>
+            rawEntity[joinColumn.name!] === joinEntity[joinColumn.referencedColumn!];
           // TODO investigate this, it's weird :b
           rawEntities = rawEntities.map(rawEntity => {
             const joinRelationEntities = joinEntities.filter(joinEntity => {

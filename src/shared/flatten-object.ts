@@ -1,6 +1,6 @@
-import { isArray, isDate, isPlainObject, isPrimitive } from 'is-what';
+import { isArray, isPlainObject } from 'is-what';
 
-export function flattenObject(object: any, separator = '.', parent = ''): any {
+export function flattenObject(object: any, separator = '.', parent = ''): Record<string, any> {
   if (!object || !isPlainObject(object)) {
     return object;
   }
@@ -10,9 +10,7 @@ export function flattenObject(object: any, separator = '.', parent = ''): any {
       acc = { ...acc, ...flattenObject(value, separator, newKey) };
     } else if (isArray(value)) {
       acc[newKey] = value.map(val => flattenObject(val, separator, newKey));
-    } else if (isPrimitive(value)) {
-      acc[newKey] = value;
-    } else if (isDate(value)) {
+    } else {
       acc[newKey] = value;
     }
     return acc;

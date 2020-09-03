@@ -94,3 +94,11 @@ export function cloneArrayShallow<T>(array: T[]): T[] {
     return array;
   }
 }
+
+export function takeRight<T>(array: T[], n = 1): T[] {
+  if (!array?.length) {
+    return [];
+  }
+  n = array.length - n;
+  return array.slice(n < 0 ? 0 : n, array.length);
+}

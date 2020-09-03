@@ -10,7 +10,14 @@ import { ColumnMetadata } from '../entity/column.ts';
 import { RelationMetadata, RelationType } from '../entity/relation.ts';
 import { StMap } from '../shared/map.ts';
 import { JoinColumnOptions } from '../entity/join-column.ts';
-import { QueryBuilder, baseWhere, getWhereStatement, SelectQueryBuilderFn, WhereConditions } from './query-builder.ts';
+import {
+  QueryBuilder,
+  baseWhere,
+  getWhereStatement,
+  SelectQueryBuilderFn,
+  WhereConditions,
+  queryBuilderReplaceParams,
+} from './query-builder.ts';
 
 export type KeyofJoin<T = any> = keyof Pick<
   SelectQueryBuilder<T>,
@@ -257,21 +264,6 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     return this;
   }
 
-  private _replaceParams(statement: string, params?: Record<string, any> | any[]): Statement {
-    if (isArray(params)) {
-      return [statement, params];
-    }
-    if (!statement.includes(':') || !params) {
-      return [statement, []];
-    }
-    const matches = statement.match(SelectQueryBuilder.PARAM_REGEX);
-    if (!matches?.length) {
-      return [statement, []];
-    }
-    const newParams = matches.map(match => params[match.slice(1)]);
-    return [statement.replace(SelectQueryBuilder.PARAM_REGEX, '?'), newParams];
-  }
-
   private _where(
     condition: string | SelectQueryBuilderFn<string> | WhereConditions,
     params?: QueryBuilderWhereParams | string | any[],
@@ -428,7 +420,7 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     if (!relationEntityMetadata) {
       return;
     }
-    const relationAlias = `${alias}_${relationEntityMetadata.dbName!}`;
+    const relationAlias = `${alias}__${relationEntityMetadata.dbName!}`;
     this[method as KeyofJoin](`${alias}.${relationMetadata.propertyKey}`, relationAlias);
     if (relationEntityMetadata.relationsMetadata.size) {
       for (const [, relationMetadataInner] of relationEntityMetadata.relationsMetadata) {
@@ -453,7 +445,7 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     let newCondition = '';
     let conditionParams = [];
     if (condition) {
-      const [_condition, _conditionParams] = this._replaceParams(condition, params);
+      const [_condition, _conditionParams] = queryBuilderReplaceParams(condition, params);
       newCondition = _condition;
       conditionParams = _conditionParams;
     }
@@ -606,7 +598,7 @@ export class SelectQueryBuilder<T> implements QueryBuilder {
     params?: Record<string, any> | any[]
   ): [QueryBuilderJoin, QueryBuilderSelect[]] {
     const [query, newParams] = join(this._createNewQueryBuilder()).getQueryAndParameters();
-    const [newCondition, conditionParams] = this._replaceParams(condition, params);
+    const [newCondition, conditionParams] = queryBuilderReplaceParams(condition, params);
     return [
       {
         alias,

@@ -47,7 +47,7 @@ export class Perfil {
   @Column({ enumValue: Teste })
   teste!: Teste;
 
-  @OneToOne(() => User)
+  @OneToOne(() => User, { eager: true })
   @JoinColumn()
   user!: User;
 
@@ -88,7 +88,7 @@ export class Grupo {
   @Column({ unique: true })
   codigo!: string;
 
-  @OneToMany(() => SubGrupo, 'grupo')
+  @OneToMany(() => SubGrupo, 'grupo', { eager: true })
   subGrupos!: SubGrupo[];
 }
 
@@ -119,7 +119,7 @@ export class SubGrupo {
   @JoinColumn()
   grupo!: Grupo;
 
-  @ManyToOne(() => Perfil)
+  @ManyToOne(() => Perfil, { eager: true })
   @JoinColumn()
   perfil!: Perfil;
 }
@@ -187,13 +187,11 @@ export class SubMode {
 const app = new Application();
 const connection = await Connection.createConnection({ ...DB_CONFIG, sync: false });
 
-const repo = connection.getRepository(Game);
+const repo = connection.getRepository(Grupo);
 
-const qb = repo.createSelectQueryBuilder('g').includeEagerRelations();
+await repo.findOne({ where: { nome: 'Grupo', subGrupos: { nome: 'SubGrupo', perfil: { nome: 'Perfil' } } } });
 
-console.log(
-  await connection.getRepository(Mode).createSelectQueryBuilder('g').innerJoinAndSelect('g.games', 'gs').getOne()
-);
+console.log(repo.createSelectQueryBuilder('g').includeEagerRelations().getQuery());
 
 /*console.log(await qb.getMany());*/
 

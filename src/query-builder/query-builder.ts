@@ -31,7 +31,7 @@ export function baseWhere<T>({
 }: WhereArgs): QueryBuilderWhere[] {
   const operator = _operator ?? QueryBuilderWhereOperator.and;
   if (isString(condition)) {
-    const [newWhere, newParams] = replaceParams(condition, params as any);
+    const [newWhere, newParams] = queryBuilderReplaceParams(condition, params as any);
     return [{ where: newWhere, params: newParams, operator }];
   } else if (isFunction(condition)) {
     const where = condition(createSelectQueryBuilder());
@@ -66,7 +66,7 @@ export function baseWhere<T>({
   }
 }
 
-export function replaceParams(statement: string, params?: Record<string, any> | any[]): Statement {
+export function queryBuilderReplaceParams(statement: string, params?: Record<string, any> | any[]): Statement {
   if (isArray(params)) {
     return [statement, params];
   }

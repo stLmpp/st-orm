@@ -1,4 +1,5 @@
-import { RequiredBy, Statement } from '../../shared/type.ts';
+import { isUndefined } from 'is-what';
+import { Statement } from '../../shared/type.ts';
 
 export type TypeFindOperator<T> = { new (not?: boolean): FindOperator<T> };
 
@@ -26,22 +27,21 @@ export class DefaultFindOperator<T> implements FindOperator<T> {
 }
 
 export type FindOperatorFn<T> = (valueA?: T, valueB?: T) => FindOperatorWhere<T>;
-export type FindOperatorFnRequired<T> = (valueA: T, valueB?: T) => RequiredBy<FindOperatorWhere<T>, 'valueA'>;
 
 export interface FindOperatorWhere<T> {
-  findOperator: FindOperator<T>;
-  valueA?: T;
-  valueB?: T;
+  __findOperator__: FindOperator<T>;
+  __valueA__?: T;
+  __valueB__?: T;
 }
 
-export function createFindOperator<T>(
-  operator: TypeFindOperator<T>
-): T extends never ? FindOperatorFn<T> : FindOperatorFnRequired<T> {
-  return ((valueA?: T, valueB?: T) => ({
-    findOperator: new operator(),
-    valueA,
-    valueB,
-  })) as any;
+export const FindOperatorWhereKeys: (keyof FindOperatorWhere<any>)[] = ['__findOperator__', '__valueA__', '__valueB__'];
+
+export function createFindOperator<T>(operator: TypeFindOperator<T>): FindOperatorFn<T> {
+  return (valueA?: T, valueB?: T) => ({
+    __findOperator__: new operator(),
+    __valueA__: valueA,
+    __valueB__: valueB,
+  });
 }
 
 export interface FindOperatorResolverArgs<T> extends FindOperatorWhere<T> {
@@ -52,14 +52,14 @@ export interface FindOperatorResolverArgs<T> extends FindOperatorWhere<T> {
 export function findOperatorResolver<T>({
   tableAlias,
   alias,
-  valueA,
-  valueB,
-  findOperator,
+  __valueA__,
+  __valueB__,
+  __findOperator__,
 }: FindOperatorResolverArgs<T>): Statement {
-  const values = findOperator.getValues(valueA, valueB);
-  if (findOperator.not) {
-    return [findOperator.negationHandling('??.??', '?', '?'), [tableAlias, alias, ...values]];
+  const values = __findOperator__.getValues(__valueA__, __valueB__).filter(value => !isUndefined(value));
+  if (__findOperator__.not) {
+    return [__findOperator__.negationHandling('??.??', '?', '?'), [tableAlias, alias, ...values]];
   } else {
-    return [findOperator.expressionHandling('??.??', '?', '?'), [tableAlias, alias, ...values]];
+    return [__findOperator__.expressionHandling('??.??', '?', '?'), [tableAlias, alias, ...values]];
   }
 }

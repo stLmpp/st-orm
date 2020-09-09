@@ -11,11 +11,11 @@ import { baseWhere, getWhereStatement, QueryBuilder, SelectQueryBuilderFn, Where
 import { replaceParams } from 'sql-builder';
 
 export class DeleteQueryBuilder<T> implements QueryBuilder {
-  constructor(driver: Driver, entityMetadata: EntityMetadata, alias?: string) {
+  constructor(driver: Driver, entityMetadata: EntityMetadata) {
     this.#driver = driver;
     this.#entityMetadata = entityMetadata;
     this.#databaseName = driver.options.db!;
-    this.#alias = alias ?? entityMetadata.dbName!;
+    this.#alias = entityMetadata.dbName!;
   }
 
   readonly #driver: Driver;
@@ -25,8 +25,8 @@ export class DeleteQueryBuilder<T> implements QueryBuilder {
 
   #whereStore: QueryBuilderWhere[] = [];
 
-  from<U>(entity: Type<U>, alias?: string): DeleteQueryBuilder<U> {
-    return this.#driver.createDeleteQueryByulder(entity, alias);
+  from<U>(entity: Type<U>): DeleteQueryBuilder<U> {
+    return this.#driver.createDeleteQueryByulder(entity);
   }
 
   private _where(
@@ -92,8 +92,8 @@ export class DeleteQueryBuilder<T> implements QueryBuilder {
   }
 
   getQueryAndParameters(): Statement {
-    let statement = 'DELETE FROM ??.?? AS ?? ';
-    const params: any[] = [this.#databaseName, this.#entityMetadata.dbName, this.#alias];
+    let statement = 'DELETE FROM ??.??';
+    const params: any[] = [this.#databaseName, this.#entityMetadata.dbName];
     const [whereStatement, whereParams] = getWhereStatement(this.#whereStore);
     statement += whereStatement;
     params.push(...whereParams);

@@ -48,13 +48,13 @@ export function baseWhere<T>({
         where.where = `??.?? = (${newStatement})`;
         where.params = [params, key, ...newParams];
       } else if (isPlainObject(value)) {
-        const { findOperator, valueA, valueB } = value;
+        const { __findOperator__, __valueA__, __valueB__ } = value;
         const [statement, _params] = findOperatorResolver({
           tableAlias: params as any,
           alias: key,
-          valueA,
-          valueB,
-          findOperator,
+          __valueA__,
+          __valueB__,
+          __findOperator__,
         });
         where.where = statement;
         where.params = _params;

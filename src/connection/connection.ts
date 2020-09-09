@@ -109,7 +109,7 @@ export class Connection {
         } doesn't exist in this connection\nDid you forget to decorate it with @Entity()?`
       );
     }
-    const repository = new Repository<T>(entity, entityMetadata, this.driver);
+    const repository = new Repository<T>(entity, entityMetadata, this.driver, this);
     this.#repositories.set(entity, repository);
     return repository;
   }

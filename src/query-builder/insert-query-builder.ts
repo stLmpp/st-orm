@@ -38,14 +38,6 @@ export class InsertQueryBuilder<T> implements QueryBuilder {
     return this.#driver.createInsertQueryBuilder(entity);
   }
 
-  private getColumnName(key: string): string {
-    const columnMetadata = this.#entityMetadata.columnsMetadata.getOrCreate(key);
-    if (!columnMetadata) {
-      throw new Error(`Column ${key} not found`);
-    }
-    return columnMetadata.dbName!;
-  }
-
   column(key: keyof T): this {
     this.#columnsStore = [key];
     return this;
@@ -124,8 +116,10 @@ export class InsertQueryBuilder<T> implements QueryBuilder {
       } else if (valueStore.values) {
         const [columns, values] = Object.entries(valueStore.values).reduce(
           (acc: [string[], any[]], [column, value]) => {
-            acc[0].push(column);
-            acc[1].push(value);
+            if (!this.#entityMetadata.relationsMetadata.has(column)) {
+              acc[0].push(column);
+              acc[1].push(value);
+            }
             return acc;
           },
           [[], []]

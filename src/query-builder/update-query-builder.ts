@@ -8,7 +8,7 @@ import {
   QueryBuilderWhereParams,
   SelectQueryBuilder,
 } from './select-query-builder.ts';
-import { ConditionalPick, ExecuteResult, Primitive, Statement, Type } from '../shared/type.ts';
+import { ConditionalKeys, ConditionalPick, ExecuteResult, Primitive, Statement, Type } from '../shared/type.ts';
 import { isAnyObject } from 'is-what';
 
 export class UpdateQueryBuilder<T> implements QueryBuilder {
@@ -32,8 +32,11 @@ export class UpdateQueryBuilder<T> implements QueryBuilder {
   }
 
   set(update: Partial<ConditionalPick<T, Primitive | Date>>): this;
-  set<K extends keyof T>(column: K, value: T[K]): this;
-  set<K extends keyof T>(update: K | Partial<ConditionalPick<T, Primitive | Date>>, value?: T[K]): this {
+  set<K extends ConditionalKeys<T, Primitive | Date>>(column: K, value: T[K]): this;
+  set<K extends ConditionalKeys<T, Primitive | Date>>(
+    update: K | Partial<ConditionalPick<T, Primitive | Date>>,
+    value?: T[K]
+  ): this {
     if (isAnyObject(update)) {
       this.#setStore = Object.entries(update).reduce((acc: [keyof T, T[keyof T]][], [column, set]) => {
         return [...acc, [column as keyof T, set as any]];
@@ -46,8 +49,11 @@ export class UpdateQueryBuilder<T> implements QueryBuilder {
   }
 
   andSet(update: Partial<ConditionalPick<T, Primitive | Date>>): this;
-  andSet<K extends keyof T>(column: K, value: T[K]): this;
-  andSet<K extends keyof T>(update: K | Partial<ConditionalPick<T, Primitive | Date>>, value?: T[K]): this {
+  andSet<K extends ConditionalKeys<T, Primitive | Date>>(column: K, value: T[K]): this;
+  andSet<K extends ConditionalKeys<T, Primitive | Date>>(
+    update: K | Partial<ConditionalPick<T, Primitive | Date>>,
+    value?: T[K]
+  ): this {
     if (isAnyObject(update)) {
       const newSets: [keyof T, T[keyof T]][] = Object.entries(update).reduce(
         (acc: [keyof T, T[keyof T]][], [column, set]) => {

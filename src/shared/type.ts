@@ -13,11 +13,19 @@ export type ConditionalKeys<Base, Condition> = NonNullable<
   }[keyof Base]
 >;
 
+export type ExcludeKeys<Base, Condition> = NonNullable<
+  { [Key in keyof Base]: Base[Key] extends Condition ? never : Key }[keyof Base]
+>;
+
+export type ConditionalExclude<Base, Condition> = Exclude<Base, ExcludeKeys<Base, Condition>>;
+
 export type ConditionalPick<Base, Condition> = Pick<Base, ConditionalKeys<Base, Condition>>;
 
 export type Primitive = string | number | boolean | bigint | symbol | undefined | null;
 
-export type PartialDeep<T> = T extends Primitive
+export type PartialDeep<T> = T extends Date
+  ? Date | string
+  : T extends Primitive
   ? Partial<T>
   : T extends Map<infer KeyType, infer ValueType>
   ? PartialMapDeep<KeyType, ValueType>

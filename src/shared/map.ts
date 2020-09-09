@@ -24,6 +24,14 @@ export class StMap<S, T> extends Map<S, T> {
     }
   }
 
+  getOrFail(key: S): T {
+    const entry = this.get(key);
+    if (!entry) {
+      throw new Error(`Entry ${key} not found`);
+    }
+    return entry;
+  }
+
   update(key: S, value: Partial<T>): this;
   update(key: S, callback: (entry: T) => T): this;
   update(key: S, valueOrCallback: Partial<T> | ((entry: T) => T)): this;

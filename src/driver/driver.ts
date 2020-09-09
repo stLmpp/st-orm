@@ -65,12 +65,12 @@ export class Driver {
     return new UpdateQueryBuilder<T>(this, entityMetadata, alias ?? entityMetadata.dbName!);
   }
 
-  createDeleteQueryByulder<T>(entity: Type<T>, alias?: string): DeleteQueryBuilder<T> {
+  createDeleteQueryByulder<T>(entity: Type<T>): DeleteQueryBuilder<T> {
     const entityMetadata = this.entitiesMap.get(entity);
     if (!entityMetadata) {
       throw new Error(`Could not find metadata for ${entity?.name ?? entity}`);
     }
-    return new DeleteQueryBuilder<T>(this, entityMetadata, alias ?? entityMetadata.dbName!);
+    return new DeleteQueryBuilder<T>(this, entityMetadata);
   }
 
   createInsertQueryBuilder<T>(entity: Type<T>): InsertQueryBuilder<T> {
@@ -315,6 +315,10 @@ export class Driver {
           } else {
             continue;
           }
+        }
+        if (!relationMeta.joinColumns) {
+          console.log(tableName, relationMeta);
+          // TODO manyToMany relation
         }
         const columns = relationMeta.joinColumns!.map(j => j.name!);
         const referencedColumns = relationMeta.joinColumns!.map(j => j.referencedColumn!);

@@ -47,7 +47,7 @@ export class Perfil {
   @Column({ enumValue: Teste })
   teste!: Teste;
 
-  @OneToOne(() => User, { eager: true })
+  @OneToOne(() => User, { eager: true, cascade: true })
   @JoinColumn()
   user!: User;
 
@@ -88,7 +88,7 @@ export class Grupo {
   @Column({ unique: true })
   codigo!: string;
 
-  @OneToMany(() => SubGrupo, 'grupo', { eager: true })
+  @OneToMany(() => SubGrupo, 'grupo', { eager: true, cascade: true })
   subGrupos!: SubGrupo[];
 }
 
@@ -119,7 +119,7 @@ export class SubGrupo {
   @JoinColumn()
   grupo!: Grupo;
 
-  @ManyToOne(() => Perfil, { eager: true })
+  @ManyToOne(() => Perfil, { eager: true, cascade: true })
   @JoinColumn()
   perfil!: Perfil;
 }
@@ -188,10 +188,6 @@ const app = new Application();
 const connection = await Connection.createConnection({ ...DB_CONFIG, sync: false });
 
 const repo = connection.getRepository(Grupo);
-
-await repo.findOne({ where: { nome: 'Grupo', subGrupos: { nome: 'SubGrupo', perfil: { nome: 'Perfil' } } } });
-
-console.log(repo.createSelectQueryBuilder('g').includeEagerRelations().getQuery());
 
 /*console.log(await qb.getMany());*/
 

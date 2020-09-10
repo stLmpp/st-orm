@@ -1,5 +1,4 @@
 import { Injectable } from '../injector/injectable.ts';
-import { injector } from '../injector/injector.ts';
 import { camelCase, snakeCase } from 'case';
 import { IndexMetadata } from '../entity/indices.ts';
 import { sha1 } from './util.ts';
@@ -33,8 +32,6 @@ export class DefaultNamingStrategy implements NamingStrategy {
     return `FK_${hashed}`.substring(0, 63);
   }
 }
-
-export const defaultNamingStrategy = injector.resolve(DefaultNamingStrategy);
 
 export interface ForeignKeyNameArgs {
   tableName: string;

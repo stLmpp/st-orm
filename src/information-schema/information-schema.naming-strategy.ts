@@ -1,5 +1,4 @@
 import { DefaultNamingStrategy } from '../shared/naming-strategy.ts';
-import { injector } from '../injector/injector.ts';
 import { Injectable } from '../injector/injectable.ts';
 import { snakeCase } from 'case';
 
@@ -12,5 +11,3 @@ export class InformationSchemaNamingStrategy extends DefaultNamingStrategy {
     return snakeCase(entityName).toUpperCase();
   }
 }
-
-export const informationSchemaNamingStrategy = injector.resolve(InformationSchemaNamingStrategy);

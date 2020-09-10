@@ -1,13 +1,14 @@
 import { Driver } from '../driver/driver.ts';
 import { Client, ClientConfig } from 'mysql';
-import { defaultNamingStrategy, NamingStrategy } from '../shared/naming-strategy.ts';
+import { DefaultNamingStrategy, NamingStrategy } from '../shared/naming-strategy.ts';
 import { entityStore } from '../store/entity.store.ts';
 import { RequiredBy, Type } from '../shared/type.ts';
 import { Repository } from '../repository/repository.ts';
 import { EntityMetadata } from '../entity/entity.ts';
-import { informationSchemaNamingStrategy } from '../information-schema/information-schema.naming-strategy.ts';
+import { InformationSchemaNamingStrategy } from '../information-schema/information-schema.naming-strategy.ts';
 import { StMap } from '../shared/map.ts';
 import { MapProfile } from '../mapper/mapper.store.ts';
+import { rootContainer } from '../config.ts';
 
 export interface SyncOptions {
   dropUnknownTables?: boolean;
@@ -64,7 +65,7 @@ export class Connection {
       version,
       isGreaterThan5,
       name: config.name ?? 'default',
-      namingStrategy: config.namingStrategy ?? defaultNamingStrategy,
+      namingStrategy: config.namingStrategy ?? rootContainer.injector.resolve(DefaultNamingStrategy),
     };
     if (!newConfig.charset) {
       newConfig.charset = isGreaterThan5 ? 'utf8mb4' : 'utf8';
@@ -76,9 +77,10 @@ export class Connection {
     const entitiesMap = entityStore.getEntitiesConnection(newConfig.name);
     let informationSchemaConnection: Connection | undefined;
     if (config.db !== 'information_schema') {
+      const namingStrategy = rootContainer.injector.resolve(InformationSchemaNamingStrategy);
       informationSchemaConnection = await Connection.createConnection({
         ...config,
-        namingStrategy: informationSchemaNamingStrategy,
+        namingStrategy,
         sync: false,
         name: 'information_schema',
         db: 'information_schema',

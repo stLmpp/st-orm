@@ -2,7 +2,6 @@ import { EntityMetadata } from '../entity/entity.ts';
 import { ColumnMetadata, ColumnType, isStringType } from '../entity/column.ts';
 import { isString } from 'is-what';
 import { Injectable } from '../injector/injectable.ts';
-import { injector } from '../injector/injector.ts';
 import { IndexMetadata } from '../entity/indices.ts';
 import { RelationCascade, RelationMetadata, RelationType } from '../entity/relation.ts';
 import { NamingStrategy } from '../shared/naming-strategy.ts';
@@ -11,6 +10,7 @@ import { StMap } from '../shared/map.ts';
 import { ConnectionConfigInternal } from '../connection/connection.ts';
 import { FormulaFn } from '../entity/formula.ts';
 import { cloneArrayShallow } from '../shared/util.ts';
+import { rootContainer } from '../config.ts';
 
 @Injectable()
 export class EntityStore {
@@ -394,4 +394,4 @@ export class EntityStore {
   }
 }
 
-export const entityStore = injector.resolve(EntityStore);
+export const entityStore = rootContainer.injector.resolve(EntityStore);

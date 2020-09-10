@@ -5,15 +5,7 @@ import { PARAM_INDEX_METADATA } from './inject.ts';
 import { Provider } from './provider.ts';
 import { StMap } from '../shared/map.ts';
 
-export const CLASS_INJECTABLE_METADATA = '__CLASS_INJECTABLE_METADATA__';
-
 export class Injector {
-  static injectables = new Map<any, boolean>();
-
-  static isInjectable(target: any): boolean {
-    return Injector.injectables.has(target);
-  }
-
   #providers = new StMap<any, Provider>();
   #cache = new StMap<any, any>();
 
@@ -34,7 +26,9 @@ export class Injector {
     return instance;
   }
 
-  resolve<T>(target: Type<T>): T {
+  resolve<T>(target: Type<T>): T;
+  resolve<T>(target: any): T;
+  resolve<T>(target: Type<T> | any): T {
     if (this.#cache.has(target)) {
       return this.#cache.get(target);
     }
@@ -75,11 +69,8 @@ export class Injector {
     this.#providers.set(provider.provide, provider);
     return this;
   }
+
+  isInjectable(key: any): boolean {
+    return this.#providers.has(key);
+  }
 }
-
-export const injector = new Injector();
-
-injector.addProvider({
-  provide: Injector,
-  value: injector,
-});

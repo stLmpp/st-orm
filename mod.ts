@@ -1,4 +1,4 @@
-import './src/injector/reflect.ts';
+import './src/config.ts';
 // TODO check if reflection is working correctly
 // import 'https://cdn.pika.dev/@abraham/reflection@^0.7.0';
 import { Application } from 'oak';
@@ -185,7 +185,7 @@ export class SubMode {
 }
 
 const app = new Application();
-const connection = await Connection.createConnection({ ...DB_CONFIG, sync: true, db: 'orcamento2' });
+const connection = await Connection.createConnection({ ...DB_CONFIG, sync: true /*, db: 'orcamento2'*/ });
 
 const repo = connection.getRepository(Grupo);
 

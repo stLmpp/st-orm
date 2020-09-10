@@ -370,6 +370,7 @@ export class Repository<T> {
     const childQb = [];
     if (children.length) {
       for (const child of children) {
+        // TODO ManyToMany
         const sets = isArray(child.set) ? child.set : [child.set];
         const entityMetadata = this.#entitiesMap.get(child.relationMetadata.referenceType);
         if (!entityMetadata) {
@@ -479,6 +480,7 @@ export class Repository<T> {
               (relationMetadata.type === RelationType.oneToOne && relationMetadata.owner) ||
               ![RelationType.oneToOne, RelationType.manyToOne].includes(relationMetadata.type)
             ) {
+              // TODO ManyToMany
               const childRepo = this.connection.getRepository(relationMetadata.referenceType!);
               const childFindConditions: FindConditions<any> = {};
               for (const joinColumn of relationMetadata.joinColumns ?? []) {

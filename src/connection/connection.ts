@@ -16,6 +16,7 @@ export interface SyncOptions {
   dropUnknownRelations?: boolean;
   askBeforeSync?: boolean;
   dropSchema?: boolean;
+  createSchema?: boolean;
 }
 
 export interface ConnectionConfig extends ClientConfig {
@@ -25,6 +26,7 @@ export interface ConnectionConfig extends ClientConfig {
   syncOptions?: SyncOptions;
   charset?: string;
   collation?: string;
+  retry?: number;
 }
 
 export interface ConnectionConfigInternal extends RequiredBy<ConnectionConfig, 'name' | 'namingStrategy'> {
@@ -32,9 +34,29 @@ export interface ConnectionConfigInternal extends RequiredBy<ConnectionConfig, '
   isGreaterThan5: boolean;
 }
 
+export class ConnectionClient {
+  retries = 0;
+
+  async connect(config: ConnectionConfig): Promise<Client> {
+    if (this.retries <= (config.retry ?? 0)) {
+      // TODO logger
+      // eslint-disable-next-line no-console
+      console.log(`Trying to connect [${this.retries}]`);
+      try {
+        return new Client().connect(config);
+      } catch (err) {
+        this.retries++;
+        return this.connect(config);
+      }
+    } else {
+      throw new Error(`Connection refused after retrying ${config.retry} times`);
+    }
+  }
+}
+
 export class Connection {
   static async createConnection(config: ConnectionConfig): Promise<Connection> {
-    const client = await new Client().connect(config);
+    const client = await new ConnectionClient().connect(config);
     const version = (await client.query('select version() as version'))[0].version;
     const isGreaterThan5 = +version.split('.').shift() > 5;
     const newConfig: ConnectionConfigInternal = {

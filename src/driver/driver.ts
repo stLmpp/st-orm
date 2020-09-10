@@ -8,7 +8,7 @@ import { SelectQueryBuilder } from '../query-builder/select-query-builder.ts';
 import { InformationSchemaService } from '../information-schema/information-schema.service.ts';
 import { replaceParams } from 'sql-builder';
 import { Tables } from '../information-schema/tables.entity.ts';
-import { relationHasChanged, RelationMetadata, resolveRelation } from '../entity/relation.ts';
+import { relationHasChanged, RelationMetadata, RelationType, resolveRelation } from '../entity/relation.ts';
 import { Columns } from '../information-schema/columns.entity.ts';
 import Ask from 'ask';
 import { StMap } from '../shared/map.ts';
@@ -300,36 +300,38 @@ export class Driver {
     const statements: Statement[] = [];
     for (const [, relationMeta] of relationsMetadata) {
       if (relationMeta.owner) {
-        const referencedTableName = this.entitiesMap.get(relationMeta.referenceType)!.dbName!;
-        const constraintDbIndex = constraintsDb.findIndex(
-          fk => fk.TABLE_NAME === tableName && fk.REFERENCED_TABLE_NAME === referencedTableName
-        );
-        if (constraintDbIndex > -1) {
-          const oldRelation = constraintsDb[constraintDbIndex];
-          constraintsDb = constraintsDb.filter((_, index) => index !== constraintDbIndex);
-          if (relationHasChanged(oldRelation, relationMeta)) {
-            statements.push([
-              'ALTER TABLE ??.?? DROP FOREIGN KEY ??',
-              [this.options.db, tableName, oldRelation.CONSTRAINT_NAME],
-            ]);
-          } else {
-            continue;
+        if (relationMeta.type !== RelationType.manyToMany) {
+          const referencedTableName = this.entitiesMap.get(relationMeta.referenceType)!.dbName!;
+          const constraintDbIndex = constraintsDb.findIndex(
+            fk => fk.TABLE_NAME === tableName && fk.REFERENCED_TABLE_NAME === referencedTableName
+          );
+          if (constraintDbIndex > -1) {
+            const oldRelation = constraintsDb[constraintDbIndex];
+            constraintsDb = constraintsDb.filter((_, index) => index !== constraintDbIndex);
+            if (relationHasChanged(oldRelation, relationMeta)) {
+              statements.push([
+                'ALTER TABLE ??.?? DROP FOREIGN KEY ??',
+                [this.options.db, tableName, oldRelation.CONSTRAINT_NAME],
+              ]);
+            } else {
+              continue;
+            }
           }
+          const columns = relationMeta.joinColumns!.map(j => j.name!);
+          const referencedColumns = relationMeta.joinColumns!.map(j => j.referencedColumn!);
+          const relationName = this.namingStrategy.foreignKeyName({
+            tableName,
+            columns,
+            referencedTableName,
+            referencedColumns,
+            options: relationMeta,
+          });
+          statements.push(
+            resolveRelation(this.options.db!, tableName, relationName, referencedTableName, relationMeta)
+          );
+        } else {
+          // TODO ManyToMany
         }
-        if (!relationMeta.joinColumns) {
-          console.log(tableName, relationMeta);
-          // TODO manyToMany relation
-        }
-        const columns = relationMeta.joinColumns!.map(j => j.name!);
-        const referencedColumns = relationMeta.joinColumns!.map(j => j.referencedColumn!);
-        const relationName = this.namingStrategy.foreignKeyName({
-          tableName,
-          columns,
-          referencedTableName,
-          referencedColumns,
-          options: relationMeta,
-        });
-        statements.push(resolveRelation(this.options.db!, tableName, relationName, referencedTableName, relationMeta));
       }
     }
     if (this.options.syncOptions?.dropUnknownRelations) {

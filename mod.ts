@@ -185,7 +185,7 @@ export class SubMode {
 }
 
 const app = new Application();
-const connection = await Connection.createConnection({ ...DB_CONFIG, sync: false });
+const connection = await Connection.createConnection({ ...DB_CONFIG, sync: true, db: 'orcamento2' });
 
 const repo = connection.getRepository(Grupo);
 

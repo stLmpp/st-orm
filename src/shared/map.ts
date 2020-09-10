@@ -32,6 +32,10 @@ export class StMap<S, T> extends Map<S, T> {
     return entry;
   }
 
+  setAndGet(key: S, entry: T): T {
+    return this.set(key, entry).getOrFail(key);
+  }
+
   update(key: S, value: Partial<T>): this;
   update(key: S, callback: (entry: T) => T): this;
   update(key: S, valueOrCallback: Partial<T> | ((entry: T) => T)): this;
